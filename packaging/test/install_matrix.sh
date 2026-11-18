@@ -9,7 +9,9 @@
 #       UPGRADE_TO=dist/network-vmap-1.0.1   also upgrade to this package
 #       BROKEN=dist/network-vmap-1.0.2       also try this (broken) package and expect the automatic rollback
 #       JOBS=4                               distros at once          KEEP=1   keep the containers afterwards
-# Distros: ubuntu24 ubuntu22 debian12 debian13 rocky9 alma9 ol9 fedora amzn2023 suse arch alpine static systemd
+# Distros: ubuntu24 ubuntu22 debian12 debian13 rocky9 alma9 ol9 fedora amzn2023 suse arch alpine static systemd offline
+#   (offline: Docker from Ubuntu's own packages first, then the container loses its network; the install must work from
+#    the bundled images alone. The collector and upgrade steps need the network and are skipped there.)
 # Results: one line per distro, logs in /tmp/vmap-matrix/<distro>.log
 set -uo pipefail
 cd "$(dirname "$0")/../.."
@@ -28,9 +30,9 @@ declare -A IMG=(
   [ubuntu24]=ubuntu:24.04 [ubuntu22]=ubuntu:22.04 [debian12]=debian:12 [debian13]=debian:13
   [rocky9]=rockylinux/rockylinux:9 [alma9]=almalinux:9 [ol9]=oraclelinux:9 [fedora]=fedora:latest
   [amzn2023]=amazonlinux:2023 [suse]=opensuse/leap:15.6 [arch]=archlinux:latest [alpine]=alpine:3.20
-  [static]=debian:12 [systemd]=vmap-test-ubuntu-systemd
+  [static]=debian:12 [systemd]=vmap-test-ubuntu-systemd [offline]=ubuntu:24.04
 )
-ALL="ubuntu24 ubuntu22 debian12 debian13 rocky9 alma9 ol9 fedora amzn2023 suse arch alpine static systemd"
+ALL="ubuntu24 ubuntu22 debian12 debian13 rocky9 alma9 ol9 fedora amzn2023 suse arch alpine static systemd offline"
 LIST=${*:-$ALL}
 
 # What docker's own dind image does, so a nested dockerd can use cgroup v2 (on a real server this is not needed).
@@ -55,7 +57,7 @@ run_one() {
   cleanup "$d"
   step="start container"
   if [ "$d" = systemd ]; then
-    docker run -d --privileged --name "$c" --hostname "vmap-$d" -v "vmt-$d-lib:/var/lib/docker" \
+    docker run -d --privileged --name "$c" --hostname "vmap-$d" -v "vmt-$d-lib:/var/lib/docker" -v "vmt-$d-ctd:/var/lib/containerd" \
       -v "$DIST:/dist:ro" --tmpfs /run --tmpfs /run/lock "${IMG[$d]}" >>"$log" 2>&1 || { fail; return 1; }
     sleep 5
   else
@@ -66,6 +68,12 @@ run_one() {
   local P=/dist/$(basename "$PKG") env=(-e VMAP_NAME=vmap.test -e "VMAP_ADMIN_PASSWORD=$PW")
   [ "$d" = static ] && env+=(-e VMAP_DOCKER_METHOD=static)
 
+  if [ "$d" = offline ]; then
+    step="preinstall Docker, then cut the network"
+    x "$c" sh -c 'apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y -q docker.io docker-compose-v2' || { fail; return 1; }
+    docker network disconnect bridge "$c" >>"$log" 2>&1 || { fail; return 1; }
+    ! docker exec "$c" sh -c 'getent hosts download.docker.com' >/dev/null 2>&1 || { fail; return 1; }
+  fi
   step="install.sh --check";  x "$c" sh "$P/install.sh" --check || { fail; return 1; }
   step="install (unattended)"; x "${env[@]}" "$c" sh "$P/install.sh" -y || { fail; return 1; }
   local dv; dv=$(docker exec "$c" docker version --format '{{.Server.Version}}' 2>/dev/null)
@@ -97,6 +105,14 @@ run_one() {
   res=$(shell "-e ACTION=device -e MOCK_IP=$ip1"); echo "$res" >>"$log"
   grep -q COLLECT_OK <<<"$res" || { fail; return 1; }
 
+  if [ "$d" = offline ]; then
+    step="uninstall --purge"
+    x "$c" docker rm -f mock1
+    x "$c" sh /opt/network-vmap/install.sh --uninstall --purge -y || { fail; return 1; }
+    echo "PASS $d in $((SECONDS - t0))s: Docker $dv (distro, preinstalled), NO network: install from bundled images, HTTPS sign-in + pages, server collect, uninstall" | tee -a "$log"
+    [ -n "${KEEP:-}" ] || cleanup "$d"
+    return 0
+  fi
   step="remote collector (install.sh --collector)"
   local tok sip
   tok=$(shell "-e ACTION=collector" | sed -n 's/^TOKEN=//p')
@@ -140,7 +156,7 @@ run_one() {
   [ -n "${KEEP:-}" ] || cleanup "$d"
 }
 
-cleanup() { docker rm -f "vmt-$1" >/dev/null 2>&1; docker volume rm -f "vmt-$1-lib" >/dev/null 2>&1; true; }
+cleanup() { docker rm -f "vmt-$1" >/dev/null 2>&1; docker volume rm -f "vmt-$1-lib" "vmt-$1-ctd" >/dev/null 2>&1; true; }
 
 [[ " $LIST " == *" systemd "* ]] && systemd_image
 echo "Testing $VERSION on: $LIST  (logs in $OUT)"

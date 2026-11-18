@@ -1,6 +1,7 @@
 #!/bin/sh
 # (POSIX preamble: on a system without bash, such as a minimal Alpine, install bash and run this script with it.)
-if [ -z "${BASH_VERSION:-}" ]; then
+# Also when /bin/sh is bash itself (RHEL, SUSE, Arch): run as "sh" it is in POSIX mode, which changes how the script behaves.
+if [ -z "${BASH_VERSION:-}" ] || (set -o | grep -q '^posix[[:space:]]*on'); then
   if ! command -v bash >/dev/null 2>&1; then
     echo "bash is needed: installing it"
     if command -v apk >/dev/null 2>&1; then apk add --no-cache bash >/dev/null
@@ -99,6 +100,7 @@ ask_yn() {     # ask_yn "question" y|n -> 0 for yes
   [[ ${REPLY_:-$def} =~ ^[Yy] ]]
 }
 have() { command -v "$1" >/dev/null 2>&1; }
+words() { tr '\n' ' ' | sed 's/^ *//; s/ *$//'; }     # lines -> one space-separated line (no xargs: minimal images lack it)
 ver_ge() { [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]; }      # ver_ge A B: A >= B
 is_ip() { [[ $1 =~ ^[0-9]+(\.[0-9]+){3}$ || $1 == *:* ]]; }
 rand() { local s=""; while [ ${#s} -lt "$1" ]; do s="$s$(head -c 256 /dev/urandom | tr -dc 'A-Za-z0-9')"; done; printf '%s' "${s:0:$1}"; }
@@ -216,13 +218,14 @@ pkg() {        # pkg install|update PACKAGES...
   esac
 }
 
-basics() {     # what the Docker installation needs: a downloader, CA certificates, tar, gzip, iptables
+basics() {     # basics [download]: tar and gzip (to load the images); with "download" also curl and CA certificates
   local want=()
-  have curl || have wget || want+=(curl)
   have tar || want+=(tar)
   have gzip || want+=(gzip)
-  [ -s /etc/ssl/certs/ca-certificates.crt ] || [ -s /etc/pki/tls/certs/ca-bundle.crt ] || [ -d /etc/ssl/certs ] || want+=(ca-certificates)
-  have curl || want+=(curl)
+  if [ "${1:-}" = download ]; then
+    have curl || want+=(curl)
+    [ -s /etc/ssl/certs/ca-certificates.crt ] || [ -s /etc/pki/tls/certs/ca-bundle.crt ] || [ -d /etc/ssl/certs ] || want+=(ca-certificates)
+  fi
   [ ${#want[@]} -eq 0 ] && return 0
   [ -n "$PM" ] || die "missing tools (${want[*]}) and no package manager to install them. Install them and run again."
   pkg update >/dev/null 2>&1 || true
@@ -341,7 +344,7 @@ compose_static() {
   chmod 0755 "$dest/docker-compose"
 }
 
-start_docker() {
+start_docker() {     # start_docker [soft]: soft returns 1 instead of stopping when Docker will not start
   docker info >/dev/null 2>&1 && return 0
   case $INIT in
     systemd) systemctl enable --now containerd >/dev/null 2>&1 || true
@@ -354,13 +357,19 @@ start_docker() {
   fi
   local i
   for i in $(seq 1 60); do docker info >/dev/null 2>&1 && return 0; sleep 1; done
+  [ "${1:-}" = soft ] && return 1
   die "Docker is installed but does not start. See: $( [ "$INIT" = systemd ] && echo 'journalctl -u docker' || echo /var/log/dockerd.log )"
 }
 
 install_docker() {
   step "Docker"
+  basics                                  # tar/gzip are needed to load the images even when Docker is already there
+  if have docker && ! docker --version 2>/dev/null | grep -qi podman && ! docker info >/dev/null 2>&1; then
+    say "  Docker is installed but not running: starting it"
+    start_docker soft || warn "the installed Docker does not start"
+  fi
   if docker_ready; then ok "Docker $(docker_version), Compose $(compose_version)"; return 0; fi
-  basics
+  basics download
   if ! have docker || docker --version 2>/dev/null | grep -qi podman; then
     local method=${VMAP_DOCKER_METHOD:-auto} done=0
     if [ "$method" = auto ]; then
@@ -552,12 +561,12 @@ questions() {
   # the server's own addresses, leaving out loopback and the bridges of Docker, libvirt, LXD and Kubernetes
   if have ip; then
     ips=$(ip -4 -o addr 2>/dev/null | awk '$2 !~ /^(lo|docker|br-|veth|virbr|lxdbr|lxcbr|cni|flannel|cali|vxlan|tun|wg|kube)/ {split($4,a,"/"); print a[1]}' \
-          | head -n 4 | xargs || true)
+          | head -n 4 | words || true)
   else
-    ips=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -E '^[0-9]+(\.[0-9]+){3}$' | grep -v '^127\.' | head -n 4 | xargs || true)
+    ips=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -E '^[0-9]+(\.[0-9]+){3}$' | grep -v '^127\.' | head -n 4 | words || true)
   fi
   if [ -z "$ips" ] && [ -r /proc/net/fib_trie ]; then     # neither tool: the kernel's list of local addresses
-    ips=$(awk '/\/32 host LOCAL/ {print p} {p=$2}' /proc/net/fib_trie | grep -v '^127\.' | sort -u | head -n 4 | xargs || true)
+    ips=$(awk '/\/32 host LOCAL/ {print p} {p=$2}' /proc/net/fib_trie | grep -v '^127\.' | sort -u | head -n 4 | words || true)
   fi
   say ""
   say "  ${D}The name or address people type in the browser (and the collectors use). A DNS name is best.${N}"
@@ -757,6 +766,7 @@ start_stack() {
 
 finish_install() {
   trap - ERR
+  set +e                                  # VMap is up: nothing below may turn a working install into a failure
   local sec; sec=/root/network-vmap-install-$(date +%Y%m%d-%H%M%S).txt
   [ -d /root ] || sec=$DIR/install-credentials.txt
   ( umask 077; cat > "$sec" <<EOF
@@ -777,7 +787,7 @@ EOF
   step "Done"
   say ""
   say "  ${B}Open${N}        $(site_url)"
-  if { : >/dev/tty; } 2>/dev/null; then printf '  %sSign in%s     admin / %s\n' "$B" "$N" "$ADMIN_PW" >/dev/tty
+  if [ -t 0 ] && { printf '  %sSign in%s     admin / %s\n' "$B" "$N" "$ADMIN_PW" >/dev/tty; } 2>/dev/null; then :
   else say "  Sign in     admin (password in $sec)"; fi
   say ""
   [ "$WEBMODE" = https ] && say "  The certificate is self-signed: browsers warn until you put yours in $DIR/deploy/certs (vmap.crt, vmap.key)" \
@@ -867,6 +877,7 @@ do_upgrade_steps() {
   ok "compose files updated; settings kept"
   step "Restarting on $VERSION (database changes run on start)"
   compose up -d --remove-orphans >/dev/null 2>&1 || true
+  restart_proxy
   if wait_healthy "$(health_url)" 600; then
     trap - ERR
     ok "Network VMap $VERSION is up. The backup of $old stays in $DIR/backups."
@@ -874,6 +885,10 @@ do_upgrade_steps() {
   fi
   warn "$VERSION did not come up: rolling back to $old"
   rollback "$old" "$bk"
+}
+
+restart_proxy() {    # nginx is not recreated when only its config file changes: restart it to load the new one
+  [ "$(get_env VMAP_MODE)" = https ] && compose restart nginx >/dev/null 2>&1 || true
 }
 
 rollback() {        # rollback OLD_VERSION BACKUP_PREFIX
@@ -885,6 +900,7 @@ rollback() {        # rollback OLD_VERSION BACKUP_PREFIX
     && gzip -dc "$2.sql.gz" | compose exec -T db psql -q -U vmap -d vmap >/dev/null 2>&1 \
     || die "the database restore failed. Restore it by hand: gunzip -c $2.sql.gz | (cd $DIR && docker compose exec -T db psql -U vmap -d vmap)"
   compose up -d >/dev/null 2>&1 || true
+  restart_proxy
   if wait_healthy "$(health_url)" 300; then die "the upgrade failed and $1 was restored with its data. Send the log ($LOG) to support."
   else die "the upgrade failed and $1 did not come back by itself. The backup is $2.sql.gz; see: cd $DIR && docker compose logs"; fi
 }
@@ -940,6 +956,7 @@ try:
 except Exception as e:
     print(type(e).__name__, str(e)[:160])" 2>/dev/null || true)
   if [ "$res" = 200 ]; then ok "the server answers"
+  elif [ "$res" = 400 ]; then warn "the server refuses the name or address in $URL (400 Bad Request): on the server, add it to DJANGO_ALLOWED_HOSTS in .env and run: docker compose up -d"
   else warn "the server did not answer from here ($res). The collector keeps trying; check the address, DNS, the firewall and the certificate."; fi
   compose up -d >/dev/null
   sleep 8
