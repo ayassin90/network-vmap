@@ -1,0 +1,181 @@
+{% extends "core/base.html" %}{% load ui humanize %}
+{% block title %}{{ d.hostname }}{% endblock %}
+{% block content %}
+<div class="page-head"><div>
+  <p class="crumbs"><a href="{% url 'inventory:list' %}">Devices</a>{% if d.site %} / {{ d.site.name }}{% endif %}</p>
+  <h1>{{ d.hostname }} {% badge d.status d.get_status_display %}{% if d.demo %} <span class="tag">demo data</span>{% endif %}</h1>
+  <p>{{ d.mgmt_ip }} · {{ d.model|default:"model unknown" }} · {{ d.driver.label }} {{ d.os_version }} · {{ d.get_role_display }}{% if d.collector %} · via collector <a href="{% url 'jobs:collector' d.collector.pk %}">{{ d.collector.name }}</a>{% endif %}</p>
+</div>
+<div class="actions">
+  {% if is_operator %}
+  <form method="post" action="{% url 'inventory:action' d.pk %}" class="inline-form">{% csrf_token %}
+    <button class="btn" name="action" value="test" title="Check TCP, SSH login and SNMP">Test</button>
+    <button class="btn" name="action" value="poll" title="Refresh counters and throughput now">Poll</button>
+    <button class="btn btn-primary" name="action" value="collect" title="Read everything again: config, neighbours, routes, interfaces">Collect now</button>
+  </form>
+  <a class="btn" href="{% url 'inventory:edit' d.pk %}">Edit</a>
+  <a class="btn" href="{% url 'alerts:case_new' %}?device={{ d.pk }}">Open case</a>
+  {% if drv.changes_supported %}<a class="btn" href="{% url 'changes:new' %}?device={{ d.pk }}">Change config</a>{% endif %}
+  {% endif %}
+</div></div>
+{% for w in windows %}<div class="alert alert-warning"><strong>{% if w.freeze %}Change freeze{% else %}Maintenance window{% endif %}: {{ w.name }}</strong>Until {{ w.ends|date:"Y-m-d H:i" }}.{% if w.mute_alerts %} New alerts for this device are muted.{% endif %}</div>{% endfor %}
+{% if d.last_error and d.status != "up" %}<div class="alert alert-bad"><strong>Last attempt failed</strong>{{ d.last_error|truncatechars:400 }}</div>{% endif %}
+{% if d.last_error and d.status == "up" %}<div class="alert alert-warn"><strong>Partly collected</strong> {{ d.last_error|truncatechars:600 }}</div>{% endif %}
+
+<nav class="tabs">
+  {% for key, label in "overview:Overview,interfaces:Interfaces,endpoints:Endpoints,neighbors:Neighbours,stp:Spanning tree,routes:Routes,vlans:VLANs,config:Config,findings:Findings,standards:Standards,psirt:PSIRT,commands:Run commands,jobs:Jobs"|split_pairs %}
+  <a href="?tab={{ key }}" class="{% if tab == key %}on{% endif %}">{{ label }}{% with n=counts|get_item:key %}{% if n %}<em class="n">{{ n }}</em>{% endif %}{% endwith %}</a>{% endfor %}
+</nav>
+
+{% if tab == "overview" %}
+<div class="grid grid-3">
+  <div class="card pad"><h2>Scores {% help 'devices#scores' %}</h2>
+    <div class="rings">
+      {% with v=d.security_score %}<div><div class="ring tone-{{ v|score_tone }}" style="--v:{{ v|default:0 }}"><b>{{ v|default:"–" }}</b></div><div class="lbl">Security</div></div>{% endwith %}
+      {% with v=d.health_score %}<div><div class="ring tone-{{ v|score_tone }}" style="--v:{{ v|default:0 }}"><b>{{ v|default:"–" }}</b></div><div class="lbl">Health</div></div>{% endwith %}
+      {% with v=d.compliance_score %}<div><div class="ring tone-{{ v|score_tone }}" style="--v:{{ v|default:0 }}"><b>{{ v|default:"–" }}</b></div><div class="lbl">Standards</div></div>{% endwith %}
+    </div>
+    <p class="small muted mt">Open findings: {{ sev_counts.critical }} critical · {{ sev_counts.high }} high · {{ sev_counts.medium }} medium · {{ sev_counts.low }} low</p>
+  </div>
+  <div class="card pad"><h2>Facts</h2>
+    <dl class="kv-list">
+      <dt>Model</dt><dd>{{ d.model|default:"–" }}</dd><dt>Serial</dt><dd class="mono">{{ d.serial|default:"–" }}</dd>
+      <dt>Software</dt><dd>{{ d.os_type|upper }} {{ d.os_version|default:"–" }}{% if d.facts.install_mode %} <span class="muted">({{ d.facts.install_mode }} mode)</span>{% endif %}</dd>
+      <dt>Image</dt><dd class="small mono">{{ d.image|default:"–" }}</dd>
+      <dt>Uptime</dt><dd>{{ d.uptime_seconds|uptime }}</dd><dt>Last reload</dt><dd class="small">{{ d.reload_reason|default:"–" }}</dd>
+      {% if d.facts.stack_members > 1 %}<dt>Stack</dt><dd>{{ d.facts.stack_members }} members</dd>{% endif %}
+      <dt>Collected</dt><dd>{{ d.last_collected|ago }}</dd><dt>Polled</dt><dd>{{ d.last_polled|ago }}</dd>
+      <dt>Credentials</dt><dd class="small">SSH: {{ d.ssh_credential.name|default:"none" }} · SNMP: {{ d.snmp_credential.name|default:"none" }}</dd>
+      {% if d.tags %}<dt>Tags</dt><dd>{% for t in d.tag_list %}<span class="tag">{{ t }}</span> {% endfor %}</dd>{% endif %}
+    </dl>
+  </div>
+  <div class="card pad"><h2>Ports</h2>
+    <div class="row-gap small" style="margin-bottom:10px">
+      <span class="badge badge-ok">{{ port_summary.up }} up</span><span class="badge badge-muted">{{ port_summary.down }} down</span><span class="badge badge-muted">{{ port_summary.disabled }} disabled</span>
+      {% if port_summary.errdis %}<span class="badge badge-bad">{{ port_summary.errdis }} err-disabled</span>{% endif %}
+    </div>
+    <div class="row-gap small" style="margin-bottom:10px"><span class="mode-pill mode-trunk">{{ port_summary.trunk }} trunk</span><span class="mode-pill mode-access">{{ port_summary.access }} access</span><span class="mode-pill mode-routed">{{ port_summary.routed }} routed</span></div>
+    <div class="portgrid">{% for i in d.interfaces.all %}{% if i.is_physical %}<a href="{% url 'inventory:interface' d.pk i.pk %}" title="{{ i.short }} {{ i.description }} · {{ i.status }} · {{ i.mode }}{% if i.speed %} · {{ i.speed }}/{{ i.duplex }}{% endif %}" class="{% if i.status == 'err-disabled' %}err{% elif not i.admin_up %}dis{% elif i.oper_up and i.mode == 'trunk' %}trunk{% elif i.oper_up %}up{% endif %}{% if i.half_duplex and i.oper_up or i.crc %} warn{% endif %}"></a>{% endif %}{% endfor %}</div>
+    <p class="small muted mt">Green: up · blue: trunk · red: err-disabled · dashed: shut · amber ring: errors or half duplex.</p>
+  </div>
+</div>
+<div class="grid grid-2 mt">
+  <div class="card table-card"><div class="pad"><h2 class="mb0">Top findings</h2></div>
+    <table class="tbl compact"><tbody>{% for f in top_findings %}<tr><td>{% sev f.severity %}</td><td><strong>{{ f.title }}</strong><div class="muted small">{{ f.detail|truncatechars:110 }}</div></td></tr>{% empty %}<tr><td class="empty">No open findings.</td></tr>{% endfor %}</tbody></table>
+    <div class="pad small"><a href="?tab=findings">All findings →</a></div></div>
+  <div class="card table-card"><div class="pad"><h2 class="mb0">Alerts</h2></div>
+    <table class="tbl compact"><tbody>{% for a in alerts %}<tr><td>{% sev a.severity %}</td><td><a href="{% url 'alerts:detail' a.pk %}">{{ a.title }}</a><div class="muted small">{{ a.get_status_display }} · {{ a.last_seen|ago }}</div></td></tr>{% empty %}<tr><td class="empty">No active alerts.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+{% if d.cpu is not None or d.env %}<div class="card pad mt"><div class="row-gap" style="justify-content:space-between"><h2 class="mb0">Hardware health {% help 'devices#health' %}</h2><span class="small muted">updated {{ d.health_at|ago }}</span></div>
+<div class="grid grid-3" style="margin-top:8px"><div>
+{% if d.cpu is not None %}<div class="hgauge"><span class="small" style="width:60px">CPU</span><div class="mini-bar"><i class="{% if d.cpu >= 80 %}hot{% elif d.cpu >= 60 %}warm{% endif %}" style="width:{{ d.cpu }}%"></i></div><b>{{ d.cpu }}%</b></div>{% endif %}
+{% if d.mem_pct is not None %}<div class="hgauge"><span class="small" style="width:60px">Memory</span><div class="mini-bar"><i class="{% if d.mem_pct >= 90 %}hot{% elif d.mem_pct >= 75 %}warm{% endif %}" style="width:{{ d.mem_pct }}%"></i></div><b>{{ d.mem_pct }}%</b></div>{% endif %}
+{% if d.temp_c is not None %}<div class="hgauge"><span class="small" style="width:60px">Temp</span><span>{{ d.temp_c }} °C {% if d.env.temp_state and d.env.temp_state != "GREEN" %}{% badge "warn" d.env.temp_state %}{% endif %}</span></div>{% endif %}
+</div><div><p class="small muted" style="margin:0">CPU, last {{ cpu_series|length }} samples</p>{% sparkline cpu_series 260 46 %}<p class="small muted" style="margin:6px 0 0">Memory</p>{% sparkline mem_series 260 30 %}</div>
+<div>{% if d.env.fans %}<p class="small muted" style="margin:0">Fans</p><div class="envlist">{% for f in d.env.fans %}{% if f.status|lower == "ok" or f.status|lower == "good" %}{% badge "ok" f.name %}{% else %}{% badge "bad" f.name|add:": "|add:f.status %}{% endif %}{% endfor %}</div>{% endif %}
+{% if d.env.psus %}<p class="small muted" style="margin:8px 0 0">Power supplies</p><div class="envlist">{% for p in d.env.psus %}{% if p.status|lower == "ok" or p.status|lower == "good" %}{% badge "ok" p.name %}{% elif p.status == "Not Present" %}{% badge "muted" p.name|add:": empty" %}{% else %}{% badge "bad" p.name|add:": "|add:p.status %}{% endif %}{% endfor %}</div>{% endif %}</div>
+</div></div>{% endif %}
+{% if optics or poe %}<div class="grid grid-2 mt">
+{% if optics %}<div class="card table-card"><div class="pad"><h2 class="mb0">Optics</h2></div><table class="tbl compact"><thead><tr><th>Port</th><th>Optic</th><th>Rx / Tx dBm</th><th>Temp</th><th></th></tr></thead><tbody>
+{% for o in optics %}<tr><td class="mono">{{ o.interface }}</td><td class="small">{{ o.pid }}<div class="muted mono">{{ o.serial }}</div></td><td>{{ o.rx|default_if_none:"–" }} / {{ o.tx|default_if_none:"–" }}</td><td class="small">{{ o.temp|default_if_none:"" }}{% if o.temp %} °C{% endif %}</td><td>{% if o.health == "alarm" %}{% badge "bad" "Alarm" %}{% elif o.health == "warning" %}{% badge "warn" "Warning" %}{% elif o.health == "ok" %}{% badge "ok" "OK" %}{% endif %}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+{% if poe %}<div class="card pad"><h2>PoE budget</h2>{% if poe.available %}<div class="mini-bar" style="height:10px"><i class="{% widthratio poe.used poe.available 100 as pct %}{% if pct|add:0 >= 90 %}hot{% elif pct|add:0 >= 70 %}warm{% endif %}" style="width:{% widthratio poe.used poe.available 100 %}%"></i></div><p>{{ poe.used }} W used of {{ poe.available }} W ({% widthratio poe.used poe.available 100 %}%)</p>{% endif %}<p class="small muted">Per-port draw is on the Interfaces tab and each port's page.</p></div>{% endif %}
+</div>{% endif %}
+{% if changes %}<div class="card table-card mt"><div class="pad"><h2 class="mb0">Recent changes</h2></div><table class="tbl compact"><tbody>{% for t in changes %}<tr><td><a href="{% url 'changes:detail' t.change_id %}">{{ t.change.number }}</a> {{ t.change.title }}</td><td>{% badge t.status t.get_status_display %}</td><td class="small muted">{{ t.change.created_at|ago }} by {{ t.change.created_by }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+{% if modules %}<div class="card table-card mt"><div class="pad"><h2 class="mb0">Hardware inventory</h2></div><table class="tbl compact"><thead><tr><th>Name</th><th>Description</th><th>PID</th><th>Serial</th></tr></thead><tbody>
+{% for m in modules %}<tr><td>{{ m.name }}</td><td class="small">{{ m.descr }}</td><td class="mono">{{ m.pid }}</td><td class="mono">{{ m.serial }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+{% if upgrade_images %}<div class="card pad mt"><h2>Software images that fit this device</h2>{% for i in upgrade_images %}<p>{{ i.name }} <strong>{{ i.version }}</strong>{% if i.version == d.os_version %} <span class="badge badge-ok">running</span>{% else %} · <a href="{% url 'upgrades:new' %}?image={{ i.pk }}">plan upgrade</a>{% endif %}</p>{% endfor %}</div>{% endif %}
+
+{% elif tab == "interfaces" %}
+<div class="card table-card"><table class="tbl">
+<thead><tr><th>Port</th><th>Description</th><th>Status</th><th>Mode · VLAN</th><th>Speed / duplex</th><th>In / out</th><th>Util</th><th>CRC</th><th>In err</th><th>Out err</th><th>Drops</th><th>Neighbour</th></tr></thead>
+<tbody>{% for i in interfaces %}{% with iss=if_issues|get_item:i.short.lower nb=nbr_map|get_item:i.short.lower %}<tr{% if not i.is_physical %} class="row-off"{% endif %}>
+<td><a href="{% url 'inventory:interface' d.pk i.pk %}"><strong class="mono">{{ i.short }}</strong></a>{% if i.port_channel %}<div class="small muted">in {{ i.port_channel }}</div>{% endif %}</td>
+<td class="small">{{ i.description|default:"" }}</td>
+<td>{% if i.status == "err-disabled" %}{% badge "err-disabled" %}{% elif not i.admin_up %}{% badge "disabled" "Shut" %}{% elif i.oper_up %}{% badge "up" %}{% else %}{% badge "notconnect" %}{% endif %}</td>
+<td><span class="mode-pill mode-{{ i.mode }}">{{ i.mode }}</span> <span class="small">{% if i.mode == "access" %}{{ i.access_vlan }}{% if i.voice_vlan %} / voice {{ i.voice_vlan }}{% endif %}{% elif i.mode == "trunk" %}native {{ i.native_vlan|default:"?" }}{% elif i.ip %}{{ i.ip }}{% endif %}</span></td>
+<td class="small {% if i.half_duplex and i.oper_up %}warn-text{% endif %}" {% if i.half_duplex and i.oper_up %}style="color:var(--bad);font-weight:600"{% endif %}>{{ i.speed|default:"" }}{% if i.duplex %} / {{ i.duplex }}{% endif %}</td>
+<td class="small">{% if i.oper_up %}{{ i.in_rate_bps|bps }}<br>{{ i.out_rate_bps|bps }}{% endif %}</td>
+<td>{% if i.utilization is not None and i.oper_up %}<div class="mini-bar"><i class="{% if i.utilization >= 80 %}hot{% elif i.utilization >= 50 %}warm{% endif %}" style="width:{{ i.utilization }}%"></i></div><span class="small muted">{{ i.utilization }}%</span>{% endif %}</td>
+<td {% if i.crc %}style="color:var(--bad);font-weight:600"{% endif %}>{{ i.crc|intcomma }}</td><td>{{ i.in_errors|intcomma }}</td><td>{{ i.out_errors|intcomma }}</td><td>{{ i.out_drops|intcomma }}</td>
+<td class="small">{% if nb %}{% if nb.remote_device_id %}<a href="{% url 'inventory:detail' nb.remote_device_id %}">{{ nb.remote_name|truncatechars:24 }}</a>{% else %}{{ nb.remote_name|truncatechars:24 }}{% endif %} <span class="mono muted">{{ nb.remote_port }}</span>{% endif %}
+{% if iss %}<div style="color:var(--bad);font-weight:500">⚠ {{ iss.title }}</div>{% endif %}</td>
+</tr>{% endwith %}{% empty %}<tr><td colspan="12" class="empty">No interfaces collected yet.</td></tr>{% endfor %}</tbody></table></div>
+
+{% elif tab == "endpoints" %}
+<div class="split"><div class="card table-card"><div class="pad"><h2 class="mb0">Endpoints on this switch's access ports</h2></div><table class="tbl"><thead><tr><th>Port</th><th>MAC</th><th>IP</th><th>Name / vendor</th><th>VLAN</th><th>Seen</th></tr></thead><tbody>
+{% for e in endpoints %}<tr><td class="mono"><strong>{{ e.interface }}</strong></td><td class="mono"><a href="{% url 'inventory:endpoint' e.pk %}">{{ e.mac_display }}</a></td><td class="mono small">{{ e.ip }}</td><td class="small">{{ e.name|default:e.vendor }}{% if e.kind and e.kind != "host" %} <span class="tag">{{ e.kind }}</span>{% endif %}</td><td>{{ e.vlan }}</td><td class="small muted">{{ e.last_seen|ago }}</td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No endpoints found on access ports.</td></tr>{% endfor %}</tbody></table></div>
+<div class="card table-card"><div class="pad"><h2 class="mb0">Full MAC table</h2><p class="small muted">{{ macs|length }} entries, including those learned on uplinks.</p></div><table class="tbl compact"><tbody>{% for m in macs|slice:":300" %}<tr><td class="mono small">{{ m.interface }}</td><td class="mono small">{{ m.mac }}</td><td class="small">{{ m.vlan }}</td></tr>{% endfor %}</tbody></table></div></div>
+
+{% elif tab == "stp" %}
+<div class="card table-card"><table class="tbl"><thead><tr><th>VLAN</th><th>Root bridge</th><th>This switch</th><th>Root port</th><th>Blocking ports</th><th>Topology changes</th></tr></thead><tbody>
+{% for s in stp %}<tr><td><a href="{% url 'inventory:stp' %}?vlan={{ s.vlan }}"><strong>{{ s.vlan }}</strong></a></td><td class="mono small">{{ s.root_mac }} <span class="muted">prio {{ s.root_prio }}</span></td><td>{% if s.is_root %}{% badge "ok" "Root" %}{% else %}<span class="small muted">prio {{ s.bridge_prio|default:"?" }}</span>{% endif %}</td>
+<td class="mono">{{ s.root_port|default:"–" }}</td><td class="mono small">{{ s.blocked|join:", "|default:"–" }}</td><td class="small">{{ s.tc_count|default:"0" }}{% if s.tc_ago %} · last {{ s.tc_ago }} ago{% endif %}{% if s.tc_from %} from <span class="mono">{{ s.tc_from }}</span>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No spanning-tree data collected for this device.</td></tr>{% endfor %}</tbody></table></div>
+
+{% elif tab == "neighbors" %}
+<div class="card table-card"><table class="tbl"><thead><tr><th>Local port</th><th>Neighbour</th><th>Their port</th><th>Address</th><th>Platform</th><th>Capabilities</th><th>Via</th></tr></thead><tbody>
+{% for n in neighbors %}<tr><td class="mono"><strong>{{ n.local_interface }}</strong></td>
+<td>{% if n.remote_device %}<a href="{% url 'inventory:detail' n.remote_device.pk %}"><strong>{{ n.remote_name }}</strong></a>{% else %}{{ n.remote_name }} <span class="tag">not managed</span>{% endif %}</td>
+<td class="mono">{{ n.remote_port }}</td><td class="mono">{{ n.remote_ip }}</td><td class="small">{{ n.remote_platform|truncatechars:50 }}</td><td class="small">{{ n.capabilities }}</td><td>{{ n.protocol|upper }}</td></tr>
+{% empty %}<tr><td colspan="7" class="empty">No CDP or LLDP neighbours. Check that CDP/LLDP runs on the uplinks.</td></tr>{% endfor %}</tbody></table></div>
+
+{% elif tab == "routes" %}
+{% if ospf %}<div class="card table-card" style="margin-bottom:14px"><div class="pad"><h2 class="mb0">OSPF neighbours</h2></div><table class="tbl compact"><thead><tr><th>Neighbour ID</th><th>State</th><th>Address</th><th>Interface</th></tr></thead><tbody>
+{% for o in ospf %}<tr><td class="mono">{{ o.neighbor_id }}</td><td>{{ o.state }}</td><td class="mono">{{ o.address }}</td><td class="mono">{{ o.interface }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+<div class="card table-card"><table class="tbl"><thead><tr><th>VRF</th><th>Prefix</th><th>Protocol</th><th>Next hop</th><th>Interface</th><th>AD / metric</th><th>Age</th></tr></thead><tbody>
+{% for r in routes %}<tr><td class="small">{{ r.vrf }}</td><td class="mono"><strong>{{ r.prefix }}</strong></td><td><span class="tag">{{ r.protocol }}</span> <span class="small muted">{{ r.protocol_name }}</span></td><td class="mono">{{ r.next_hop|default:"directly connected" }}</td><td class="mono small">{{ r.interface }}</td><td class="small">{% if r.distance is not None %}{{ r.distance }}/{{ r.metric }}{% endif %}</td><td class="small muted">{{ r.age }}</td></tr>
+{% empty %}<tr><td colspan="7" class="empty">No routing table collected.</td></tr>{% endfor %}</tbody></table></div>
+
+{% elif tab == "vlans" %}
+<div class="card table-card"><table class="tbl"><thead><tr><th>VLAN</th><th>Name</th><th>Status</th><th>Access ports</th></tr></thead><tbody>
+{% for v in vlans %}<tr><td><strong>{{ v.vid }}</strong></td><td>{{ v.name }}</td><td>{{ v.status }}</td><td class="small mono">{{ v.ports|truncatechars:200 }}</td></tr>{% empty %}<tr><td colspan="4" class="empty">No VLANs collected.</td></tr>{% endfor %}</tbody></table></div>
+
+{% elif tab == "config" %}
+{% if latest %}<div class="split">
+<div class="card pad"><div class="row-gap" style="justify-content:space-between;margin-bottom:10px"><h2 class="mb0">Running configuration</h2><span class="muted small">saved {{ latest.collected_at|date:"Y-m-d H:i" }}</span></div><pre class="pre">{{ latest.text }}</pre></div>
+<div class="card table-card"><div class="pad"><h2 class="mb0">Versions</h2><p class="muted small">A new version is kept whenever the configuration changes (last 50).</p></div>
+<table class="tbl compact"><tbody>{% for c in configs %}<tr><td><a href="{% url 'inventory:config' d.pk c.pk %}">{{ c.collected_at|date:"Y-m-d H:i" }}</a></td><td class="right small">{% if forloop.last %}<span class="muted">first</span>{% else %}<span class="ok-text">+{{ c.added }}</span> <span style="color:var(--bad)">−{{ c.removed }}</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+</div>{% else %}<div class="card empty-state"><p>No configuration saved yet. It is read on every SSH collection.</p></div>{% endif %}
+
+{% elif tab == "findings" %}
+<div class="stack-sm">{% for f in findings %}
+<details class="card find-group s-{{ f.severity }}" {% if forloop.first %}open{% endif %}>
+  <summary>{% sev f.severity %}<span class="t">{{ f.title }}{% if f.key and f.category == "interface" %} <span class="mono muted">{{ f.key }}</span>{% endif %}</span><span class="tag">{{ f.get_category_display }}</span>{% if f.status == "accepted" %}{% badge "accepted" "Accepted" %}{% endif %}<span class="muted small">since {{ f.first_seen|ago }}</span></summary>
+  <div class="body find-cols">
+    <div><p><strong>What we saw:</strong> {{ f.detail }}</p><p style="white-space:pre-line">{{ f.recommendation }}</p>
+      {% if is_operator %}<form method="post" action="{% url 'checks:finding_action' f.pk %}" class="inline-form">{% csrf_token %}{% if f.status == "open" %}<input name="note" placeholder="Why is this acceptable?" style="width:240px"><button class="btn btn-sm" name="action" value="accept">Accept risk</button>{% else %}<button class="btn btn-sm" name="action" value="reopen">Reopen</button>{% endif %}</form>{% endif %}
+      {% if f.accepted_note %}<p class="small muted">Accepted by {{ f.accepted_by }}: {{ f.accepted_note }}</p>{% endif %}</div>
+    <div>{% if f.remediation %}<p class="small muted" style="margin:0 0 4px">Suggested configuration</p><pre class="pre">{{ f.remediation }}</pre>{% endif %}</div>
+  </div>
+</details>{% empty %}<div class="card empty-state"><p>No open findings for this device.</p></div>{% endfor %}</div>
+{% if resolved %}<h2 class="mt-lg">Recently resolved</h2><div class="card table-card"><table class="tbl compact"><tbody>{% for f in resolved %}<tr><td>{% sev f.severity %}</td><td>{{ f.title }} <span class="muted mono">{{ f.key }}</span></td><td class="muted small">fixed {{ f.resolved_at|ago }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+
+{% elif tab == "standards" %}
+{% for r in results %}<div class="card pad" style="margin-bottom:12px"><div class="row-gap" style="justify-content:space-between"><h2 class="mb0"><a href="{% url 'checks:standard' r.standard.pk %}">{{ r.standard.name }}</a></h2>{% include "core/_score.html" with v=r.score %}</div>
+<p class="small muted">{{ r.passed }} rules met · {{ r.failed }} missing · checked {{ r.ran_at|ago }}</p>
+<table class="tbl compact"><tbody>{% for dt in r.details %}<tr><td style="width:26px">{% if dt.ok %}<span class="ok-text">✓</span>{% else %}<span style="color:var(--bad)">✗</span>{% endif %}</td><td>{{ dt.name }}{% if not dt.ok and dt.missing %}<div class="small muted">{{ dt.missing|slice:":6"|join:", " }}{% if dt.missing|length > 6 %} …{% endif %}</div>{% endif %}</td><td>{% if not dt.ok %}{% sev dt.severity %}{% endif %}</td><td>{% if not dt.ok and dt.remediation %}<pre class="pre" style="max-height:120px">{{ dt.remediation }}</pre>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<div class="card empty-state"><p>No config standard applies to this device yet. <a href="{% url 'checks:standards' %}">Manage standards</a>.</p></div>{% endfor %}
+
+{% elif tab == "psirt" %}
+<div class="card table-card"><table class="tbl"><thead><tr><th>Advisory</th><th>Severity</th><th>CVSS</th><th>How matched</th><th>Status</th></tr></thead><tbody>
+{% for h in advisories %}<tr><td><a href="{% url 'psirt:detail' h.advisory.pk %}"><strong>{{ h.advisory.title }}</strong></a><div class="small muted">{{ h.advisory.advisory_id }} · {{ h.advisory.cves }}</div></td><td>{% sev h.advisory.severity %}</td><td>{{ h.advisory.cvss|default:"–" }}</td><td class="small">{{ h.get_match_display }}<div class="muted">{{ h.detail }}</div></td><td>{% badge h.status h.get_status_display %}</td></tr>
+{% empty %}<tr><td colspan="5" class="empty">No known advisories match this device. {% if not d.os_version %}Collect it first so the software version is known.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+
+{% elif tab == "commands" %}
+<div class="split"><div class="card pad">
+<h2>Run read-only commands {% help 'devices#commands' %}</h2>
+<p class="muted small">One command per line. Only <code>show</code>, <code>display</code>, <code>dir</code> and <code>verify</code> commands are allowed here.</p>
+{% if is_operator %}<form method="post" action="{% url 'inventory:action' d.pk %}" class="form" style="max-width:none">{% csrf_token %}<input type="hidden" name="action" value="commands">
+<textarea name="commands" rows="5" placeholder="show interfaces status&#10;show spanning-tree summary&#10;show logging | include LINK"></textarea><div><button class="btn btn-primary">Run</button></div></form>{% else %}<p class="muted">Operators can run commands.</p>{% endif %}
+</div>
+<div class="card table-card"><div class="pad"><h2 class="mb0">Recent runs</h2></div><table class="tbl compact"><tbody>{% for j in cmd_jobs %}<tr><td><a href="{% url 'jobs:detail' j.pk %}">#{{ j.pk }}</a> {% badge j.status %}<div class="small muted">{{ j.created_at|ago }} by {{ j.created_by }}</div></td></tr>{% empty %}<tr><td class="empty">None yet.</td></tr>{% endfor %}</tbody></table></div></div>
+
+{% elif tab == "jobs" %}
+<div class="card table-card"><table class="tbl"><thead><tr><th>Job</th><th>Kind</th><th>Status</th><th>Summary</th><th>When</th><th>Took</th></tr></thead><tbody>
+{% for j in jobs %}<tr><td><a href="{% url 'jobs:detail' j.pk %}">#{{ j.pk }}</a></td><td>{{ j.get_kind_display }}</td><td>{% badge j.status %}</td><td class="small">{{ j.summary|default:j.error|truncatechars:100 }}</td><td class="small muted">{{ j.created_at|ago }}</td><td class="small">{{ j.duration|default_if_none:"" }}{% if j.duration %}s{% endif %}</td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No jobs yet.</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+
+{% if is_admin and tab == "overview" %}<form method="post" action="{% url 'inventory:action' d.pk %}" class="mt-lg" data-confirm="Delete {{ d.hostname }} and everything collected from it?" data-confirm-danger data-confirm-type="{{ d.hostname }}">{% csrf_token %}<button class="btn btn-sm btn-danger" name="action" value="delete">Delete device</button></form>{% endif %}
+{% endblock %}

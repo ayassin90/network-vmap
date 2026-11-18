@@ -1,0 +1,22 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="page-head"><div>{% if device %}<p class="crumbs"><a href="{% url 'inventory:list' %}">Devices</a> / <a href="{% url 'inventory:detail' device.pk %}">{{ device.hostname }}</a></p>{% endif %}<h1>{{ title }} {% help help_ref|default:'devices#add' %}</h1></div></div>
+<div class="split">
+<form method="post" class="card pad form" style="max-width:none">{% csrf_token %}
+  {% include "core/_form.html" %}
+  {% if collect_option %}<label class="check"><input type="checkbox" name="collect_now" value="1" checked> Collect right away</label>{% endif %}
+  <div class="actions"><button class="btn btn-primary">Save</button><a class="btn" href="{% if device %}{% url 'inventory:detail' device.pk %}{% else %}{% url 'inventory:list' %}{% endif %}">Cancel</a></div>
+</form>
+<div class="card pad small">
+  <h3>Before you add</h3>
+  <ul class="stack-sm" style="padding-left:18px;margin:0">
+    <li><strong>Credentials</strong> live under <a href="{% url 'inventory:setup' %}">Sites &amp; credentials</a>. Use an account with privilege 15 (or give the enable secret) so VMap can read the configuration.</li>
+    <li><strong>SNMP</strong> is optional but recommended: it gives throughput and error trends every few minutes without logging in.</li>
+    <li><strong>Collector</strong>: pick one when this server cannot reach the device directly (for example VMap in the cloud, switches on-prem).</li>
+    <li>Not sure about the platform? Pick Cisco IOS for any Catalyst; VMap switches to IOS-XE automatically after it reads <code>show version</code>.</li>
+    <li>See the <a href="{% url 'inventory:platforms' %}">platform guide</a> for what each vendor supports.</li>
+  </ul>
+</div>
+</div>
+{% endblock %}

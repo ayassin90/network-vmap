@@ -1,0 +1,192 @@
+# Mock switch lab: fifteen pretend switches (Cisco IOS/IOS-XE/NX-OS, Aruba CX and AOS-S, Huawei, Juniper, Arista, FortiSwitch) on 172.31.99.0/24 that the worker reaches over SSH and SNMP.
+#   docker compose -f docker-compose.yml -f docker-compose.lab.yml up -d --build
+# Credentials: SSH vmap / vmap-lab, SNMP v2c community vmap-lab. Seed a discovery with 172.31.99.1.
+x-mock: &mock
+  build:
+    context: .
+    dockerfile: tools/mocklab/Dockerfile
+  image: vmap-mockswitch:latest
+  restart: unless-stopped
+
+services:
+  worker:
+    networks: [default, lablan]
+
+  receiver:
+    networks:
+      default:
+      lablan:
+        ipv4_address: 172.31.99.250
+
+  lab-core-1:
+    <<: *mock
+    hostname: core-1
+    environment:
+      LAB_DEVICE: CORE-1
+      LAB_IPS: lab
+      LAB_SYSLOG: 172.31.99.250
+    networks:
+      lablan:
+        ipv4_address: 172.31.99.1
+
+  lab-core-2:
+    <<: *mock
+    hostname: core-2
+    environment:
+      LAB_DEVICE: CORE-2
+      LAB_IPS: lab
+      LAB_SYSLOG: 172.31.99.250
+    networks:
+      lablan:
+        ipv4_address: 172.31.99.2
+
+  lab-wan-rtr:
+    <<: *mock
+    hostname: wan-rtr
+    environment:
+      LAB_DEVICE: WAN-RTR
+      LAB_IPS: lab
+      LAB_SYSLOG: 172.31.99.250
+    networks:
+      lablan:
+        ipv4_address: 172.31.99.3
+
+  lab-acc-1:
+    <<: *mock
+    hostname: acc-1
+    environment:
+      LAB_DEVICE: ACC-1
+      LAB_IPS: lab
+      LAB_SYSLOG: 172.31.99.250
+    networks:
+      lablan:
+        ipv4_address: 172.31.99.11
+
+  lab-acc-2:
+    <<: *mock
+    hostname: acc-2
+    environment:
+      LAB_DEVICE: ACC-2
+      LAB_IPS: lab
+      LAB_SYSLOG: 172.31.99.250
+    networks:
+      lablan:
+        ipv4_address: 172.31.99.12
+
+  lab-acc-3:
+    <<: *mock
+    hostname: acc-3
+    environment:
+      LAB_DEVICE: ACC-3
+      LAB_IPS: lab
+      LAB_SYSLOG: 172.31.99.250
+    networks:
+      lablan:
+        ipv4_address: 172.31.99.13
+
+  lab-acc-4:
+    <<: *mock
+    hostname: acc-4
+    environment:
+      LAB_DEVICE: ACC-4
+      LAB_IPS: lab
+      LAB_SYSLOG: 172.31.99.250
+    networks:
+      lablan:
+        ipv4_address: 172.31.99.14
+
+  lab-acc-5:
+    <<: *mock
+    hostname: acc-5
+    environment:
+      LAB_DEVICE: ACC-5
+      LAB_IPS: lab
+      LAB_SYSLOG: 172.31.99.250
+    networks:
+      lablan:
+        ipv4_address: 172.31.99.15
+
+  lab-acc-6:
+    <<: *mock
+    hostname: acc-6
+    environment:
+      LAB_DEVICE: ACC-6
+      LAB_IPS: lab
+      LAB_SYSLOG: 172.31.99.250
+    networks:
+      lablan:
+        ipv4_address: 172.31.99.16
+
+  lab-acc-7:
+    <<: *mock
+    hostname: acc-7
+    environment:
+      LAB_DEVICE: ACC-7
+      LAB_IPS: lab
+      LAB_SYSLOG: 172.31.99.250
+    networks:
+      lablan:
+        ipv4_address: 172.31.99.17
+
+  lab-acc-8:
+    <<: *mock
+    hostname: acc-8
+    environment:
+      LAB_DEVICE: ACC-8
+      LAB_IPS: lab
+      LAB_SYSLOG: 172.31.99.250
+    networks:
+      lablan:
+        ipv4_address: 172.31.99.18
+
+  lab-acc-9:
+    <<: *mock
+    hostname: acc-9
+    environment:
+      LAB_DEVICE: ACC-9
+      LAB_IPS: lab
+      LAB_SYSLOG: 172.31.99.250
+    networks:
+      lablan:
+        ipv4_address: 172.31.99.19
+
+  lab-acc-10:
+    <<: *mock
+    hostname: acc-10
+    environment:
+      LAB_DEVICE: ACC-10
+      LAB_IPS: lab
+      LAB_SYSLOG: 172.31.99.250
+    networks:
+      lablan:
+        ipv4_address: 172.31.99.20
+
+  lab-dc-leaf-1:
+    <<: *mock
+    hostname: dc-leaf-1
+    environment:
+      LAB_DEVICE: DC-LEAF-1
+      LAB_IPS: lab
+      LAB_SYSLOG: 172.31.99.250
+    networks:
+      lablan:
+        ipv4_address: 172.31.99.21
+
+  lab-dc-leaf-2:
+    <<: *mock
+    hostname: dc-leaf-2
+    environment:
+      LAB_DEVICE: DC-LEAF-2
+      LAB_IPS: lab
+      LAB_SYSLOG: 172.31.99.250
+    networks:
+      lablan:
+        ipv4_address: 172.31.99.22
+
+networks:
+  lablan:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.99.0/24
+          gateway: 172.31.99.254

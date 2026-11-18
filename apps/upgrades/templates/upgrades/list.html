@@ -1,0 +1,11 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}Software upgrades{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Software upgrades {% help 'upgrades' %}</h1><p>Roll out software to many switches in waves: copy, verify, activate and check, with a dry run first. Platforms that cannot be upgraded remotely are marked in the platform guide.</p></div>
+<div class="actions"><a class="btn" href="{% url 'upgrades:images' %}">Images</a>{% if is_operator %}<a class="btn btn-primary" href="{% url 'upgrades:new' %}">New upgrade plan</a>{% endif %}</div></div>
+<div class="split"><div class="card table-card"><table class="tbl"><thead><tr><th>Plan</th><th>Image</th><th>Mode</th><th>Devices</th><th>Status</th><th>Created</th></tr></thead><tbody>
+{% for p in plans %}<tr><td><a href="{% url 'upgrades:plan' p.pk %}"><strong>{{ p.name }}</strong></a>{% if p.dry_run %} <span class="tag">dry run</span>{% endif %}</td><td>{{ p.image.version }}</td><td class="small">{{ p.get_mode_display }}{% if p.allow_reload %} + reload{% endif %}</td><td>{{ p.targets.count }}</td><td>{% badge p.status p.get_status_display %}</td><td class="small muted">{{ p.created_at|ago }} by {{ p.created_by }}</td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No plans yet. Add an image, then create a plan.</td></tr>{% endfor %}</tbody></table></div>
+<div class="card table-card"><div class="pad"><h2 class="mb0">What runs where</h2></div><table class="tbl compact"><thead><tr><th>Platform · model</th><th>Version</th><th></th></tr></thead><tbody>
+{% for r in vrows %}<tr><td class="small">{{ r.0 }}<div class="muted">{{ r.1 }}</div></td><td class="mono">{{ r.2 }}</td><td class="right">{{ r.3 }}</td></tr>{% empty %}<tr><td class="empty">Nothing collected yet.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

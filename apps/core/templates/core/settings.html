@@ -1,0 +1,21 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Settings</h1><p>Schedules, thresholds and integrations. Changes apply on the worker's next cycle (within 30 seconds).</p></div></div>
+<div class="split">
+<form method="post" class="card pad form" style="max-width:none">{% csrf_token %}
+  {% for title, rows in sections %}<details class="set-sec" {% if forloop.first %}open{% endif %}><summary><h2>{{ title }}</h2></summary>
+  {% for r in rows %}<label>{{ r.label }}
+    {% if r.secret %}<input type="password" name="{{ r.key }}" placeholder="{% if r.is_set %}•••••• (set; leave empty to keep){% else %}not set{% endif %}" autocomplete="new-password">
+    {% elif r.key|slice:"-7:" == "_groups" %}<textarea name="{{ r.key }}" rows="2">{{ r.value }}</textarea>
+    {% else %}<input name="{{ r.key }}" value="{{ r.value }}">{% endif %}
+    {% if r.help %}<span class="helptext">{{ r.help }}</span>{% endif %}</label>{% endfor %}
+  {% if title == "Directory login (LDAP / Active Directory)" and is_admin %}<p class="small"><button class="btn btn-sm" name="test_ldap" value="1" formnovalidate>Save and test LDAP</button> <input name="test_user" placeholder="test username" style="width:160px"> <input name="test_password" type="password" placeholder="password" style="width:140px" autocomplete="new-password"></p>{% endif %}
+  {% if title == "NetBox" %}<p class="small"><a href="{% url 'integrations:netbox' %}">Open the NetBox sync page</a></p>{% endif %}
+  </details>{% endfor %}
+  {% if is_admin %}<div><button class="btn btn-primary">Save settings</button></div>{% else %}<p class="muted small">Only administrators can change settings.</p>{% endif %}
+</form>
+<div class="card table-card"><div class="pad"><h2 class="mb0">Audit trail</h2><p class="muted small">Who changed what.</p></div>
+<table class="tbl compact"><tbody>{% for a in audit %}<tr><td class="small"><strong>{{ a.user }}</strong> {{ a.action }} {{ a.target }}<div class="muted">{{ a.at|ago }}{% if a.detail %} · {{ a.detail|truncatechars:60 }}{% endif %}</div></td></tr>{% empty %}<tr><td class="empty">Nothing yet.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+{% endblock %}

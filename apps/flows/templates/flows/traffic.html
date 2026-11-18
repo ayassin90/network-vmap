@@ -1,0 +1,75 @@
+{% extends "core/base.html" %}
+{% block title %}Traffic (NetFlow){% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Traffic {% help 'flows' %}</h1><p>Who is talking to whom, and with which applications, from NetFlow v5/v9 and IPFIX exported by your routers and switches.</p></div>
+<div class="actions"><div class="seg">{% for x in windows %}<a href="?w={{ x }}{% if dev_id %}&device={{ dev_id }}{% endif %}{% if ip %}&ip={{ ip }}{% endif %}{% if port %}&port={{ port }}{% endif %}" class="{% if x == w %}on{% endif %}">{{ x }}</a>{% endfor %}</div></div></div>
+{% if not any %}
+<div class="card"><h2>No flow data yet</h2><p>Point your devices' NetFlow or IPFIX exporter at this server, <strong>UDP port 2055</strong>. Examples:</p>
+<div class="grid-2"><div><h3>Cisco IOS-XE (Flexible NetFlow)</h3><pre class="code small">flow exporter VMAP
+ destination &lt;vmap-ip&gt;
+ transport udp 2055
+ export-protocol netflow-v9
+flow record VMAP
+ match ipv4 source address
+ match ipv4 destination address
+ match ipv4 protocol
+ match transport source-port
+ match transport destination-port
+ match interface input
+ collect interface output
+ collect counter bytes long
+ collect counter packets long
+flow monitor VMAP
+ exporter VMAP
+ record VMAP
+interface TenGigabitEthernet1/0/24
+ ip flow monitor VMAP input</pre></div>
+<div><h3>Cisco NX-OS</h3><pre class="code small">feature netflow
+flow exporter VMAP
+  destination &lt;vmap-ip&gt; use-vrf management
+  transport udp 2055
+  version 9
+flow monitor VMAP
+  record netflow-original
+  exporter VMAP
+interface Ethernet1/49
+  ip flow monitor VMAP input</pre>
+<h3>Juniper (inline J-Flow / IPFIX)</h3><pre class="code small">set services flow-monitoring version-ipfix template VMAP ipv4-template
+set forwarding-options sampling instance VMAP family inet output flow-server &lt;vmap-ip&gt; port 2055 version-ipfix template VMAP</pre>
+<h3>Huawei (NetStream)</h3><pre class="code small">ip netstream export version 9
+ip netstream export host &lt;vmap-ip&gt; 2055
+interface XGigabitEthernet0/0/1
+ ip netstream inbound</pre></div></div>
+<p class="small muted">sFlow (Arista, Aruba, FortiSwitch) is not decoded yet. Flows are kept for {{ "7" }} days by default (Settings).</p></div>
+{% else %}
+<form class="card filters"><input type="hidden" name="w" value="{{ w }}">
+<label>Exporter <select name="device"><option value="">All</option>{% for d in devices %}<option value="{{ d.pk }}" {% if d.pk|stringformat:'s' == dev_id %}selected{% endif %}>{{ d.hostname }}</option>{% endfor %}</select></label>
+<label>IP <input name="ip" value="{{ ip }}" placeholder="10.10.10.25"></label><label>Port <input name="port" value="{{ port|default_if_none:'' }}" style="width:90px"></label>
+<button class="btn btn-primary">Filter</button>{% if dev_id or ip or port or ifx %}<a class="btn" href="?w={{ w }}">Clear</a>{% endif %}</form>
+<div class="grid grid-4 mt">
+<div class="card stat"><span class="n">{{ total.b|default:0|filesizeformat }}</span><span class="l">Traffic in the last {{ w }}</span></div>
+<div class="card stat"><span class="n">{{ avg_bps|bps }}</span><span class="l">Average rate</span></div>
+<div class="card stat"><span class="n">{{ total.f|default:0|intcomma }}</span><span class="l">Flows</span></div>
+<div class="card stat"><span class="n">{{ total.p|default:0|intcomma }}</span><span class="l">Packets</span></div></div>
+<div class="card mt"><h2>Traffic over time <span class="small muted">per {% if hourly %}hour{% else %}minute{% endif %}</span></h2>
+<div class="flowchart">{% for s in series %}<i style="height:{{ s.h }}%" title="{{ s.ts|date:'D H:i' }} · {{ s.bps|bps }}"></i>{% empty %}<span class="muted small">No data in this window.</span>{% endfor %}</div></div>
+<div class="grid-2 mt">
+<div class="card table-card"><div class="pad"><h2 class="mb0">Top talkers (sources)</h2></div><table class="tbl"><thead><tr><th>Source</th><th>Bytes</th><th>Avg rate</th><th style="width:120px">Share</th></tr></thead><tbody>
+{% for r in talkers %}<tr><td><a class="mono" href="?w={{ w }}&ip={{ r.src }}">{{ r.src }}</a>{% if r.name %}<div class="small muted">{{ r.name }}</div>{% endif %}</td><td>{{ r.b|filesizeformat }}</td><td class="small">{{ r.bps|bps }}</td><td><div class="mini-bar"><i style="width:{{ r.pct }}%"></i></div><span class="small">{{ r.pct }}%</span></td></tr>{% endfor %}
+</tbody></table></div>
+<div class="card table-card"><div class="pad"><h2 class="mb0">Top destinations</h2></div><table class="tbl"><thead><tr><th>Destination</th><th>Bytes</th><th>Avg rate</th><th style="width:120px">Share</th></tr></thead><tbody>
+{% for r in dests %}<tr><td><a class="mono" href="?w={{ w }}&ip={{ r.dst }}">{{ r.dst }}</a>{% if r.name %}<div class="small muted">{{ r.name }}</div>{% endif %}</td><td>{{ r.b|filesizeformat }}</td><td class="small">{{ r.bps|bps }}</td><td><div class="mini-bar"><i style="width:{{ r.pct }}%"></i></div><span class="small">{{ r.pct }}%</span></td></tr>{% endfor %}
+</tbody></table></div>
+<div class="card table-card"><div class="pad"><h2 class="mb0">Applications</h2><p class="small muted">By protocol and service port.</p></div><table class="tbl"><thead><tr><th>Application</th><th>Bytes</th><th>Hosts</th><th style="width:120px">Share</th></tr></thead><tbody>
+{% for r in apps %}<tr><td><a href="?w={{ w }}&port={{ r.port }}">{{ r.app }}</a></td><td>{{ r.b|filesizeformat }}</td><td>{{ r.n }}</td><td><div class="mini-bar"><i style="width:{{ r.pct }}%"></i></div><span class="small">{{ r.pct }}%</span></td></tr>{% endfor %}
+</tbody></table></div>
+<div class="card table-card"><div class="pad"><h2 class="mb0">Exporters</h2></div><table class="tbl"><thead><tr><th>Device</th><th>Bytes</th><th>Avg rate</th></tr></thead><tbody>
+{% for e in exporters %}<tr><td>{% if e.dev %}<a href="?w={{ w }}&device={{ e.dev.pk }}">{{ e.dev.hostname }}</a>{% else %}<span class="mono">{{ e.exporter }}</span> <span class="small muted">(not in inventory)</span>{% endif %}</td><td>{{ e.b|filesizeformat }}</td><td class="small">{{ e.bps|bps }}</td></tr>{% endfor %}
+</tbody></table>
+{% if ifaces %}<div class="pad"><h3 class="mb0">Input interfaces</h3></div><table class="tbl"><tbody>{% for r in ifaces %}<tr><td>{% if r.i %}<a class="mono" href="{% url 'inventory:interface' r.i.device_id r.i.pk %}">{{ r.i.short }}</a> <span class="small muted">{{ r.i.description|truncatechars:30 }}</span>{% else %}ifIndex {{ r.idx }}{% endif %}</td><td>{{ r.b|filesizeformat }}</td><td class="small">{{ r.bps|bps }}</td></tr>{% endfor %}</tbody></table>{% endif %}
+</div></div>
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">Top conversations</h2></div><table class="tbl"><thead><tr><th>Source</th><th>Destination</th><th>Application</th><th>Bytes</th><th>Packets</th><th>Avg rate</th></tr></thead><tbody>
+{% for r in convs %}<tr><td class="mono">{{ r.src }}{% if r.src_name %}<div class="small muted">{{ r.src_name }}</div>{% endif %}</td><td class="mono">{{ r.dst }}{% if r.dst_name %}<div class="small muted">{{ r.dst_name }}</div>{% endif %}</td><td>{{ r.app }}</td><td>{{ r.b|filesizeformat }}</td><td class="small">{{ r.p|intcomma }}</td><td class="small">{{ r.bps|bps }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "core/base.html" %}
+{% block title %}New change{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'changes:list' %}">Changes</a></p><h1>New configuration change</h1><p>Pick a template (or type lines), pick devices, preview exactly what each device will receive, then submit it for approval.</p></div></div>
+<form method="get" class="filters"><select name="template" onchange="this.form.submit()"><option value="">Ad-hoc lines (no template)</option>{% for t in templates %}<option value="{{ t.pk }}" {% if tpl and tpl.pk == t.pk %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select><a class="small" href="{% url 'changes:templates' %}">Manage templates</a></form>
+<form method="post">{% csrf_token %}{% if tpl %}<input type="hidden" name="template" value="{{ tpl.pk }}">{% endif %}
+<div class="split"><div>
+<div class="card pad form" style="max-width:none">
+<label>Title<input name="title" value="{% firstof form.title tpl.name '' %}" placeholder="What and why, in a few words"></label>
+{% if tpl %}<p class="small muted">{{ tpl.description }}</p><pre class="pre" style="max-height:220px">{{ tpl.body }}</pre>
+{% for v in tpl.variables %}<label>{{ v.label|default:v.name }}<input name="var_{{ v.name }}" value="{{ variables|get_item:v.name|default:'' }}">{% if v.help %}<span class="helptext">{{ v.help }}</span>{% endif %}</label>{% endfor %}
+{% else %}<label>Configuration lines<textarea name="body" rows="8" placeholder="ntp server 10.50.1.1&#10;interface GigabitEthernet1/0/10&#10; description Printer">{{ body }}</textarea><span class="helptext">Template syntax works here too: {% templatetag openvariable %} device.hostname {% templatetag closevariable %}, loops over interfaces.access …</span></label>{% endif %}
+<label>Why<input name="reason" value="{{ form.reason|default:'' }}" placeholder="Ticket number or reason"></label>
+<div class="row-gap"><label class="check"><input type="checkbox" name="save_config" {% if not form or form.save_config %}checked{% endif %}> Save the configuration after applying</label>
+<label class="check"><input type="checkbox" name="rollback" {% if not form or form.rollback %}checked{% endif %}> Roll back automatically if a line is rejected</label></div>
+<div class="row-gap"><label>Devices at a time <input type="number" name="max_parallel" value="{{ form.max_parallel|default:5 }}" min="1" max="50" style="width:80px"></label><label>Start at <input type="datetime-local" name="scheduled_for" value="{{ form.scheduled_for|default:'' }}"></label></div>
+</div>
+{% if previews %}<h2 class="mt-lg">Preview</h2>{% for d, cfg, present in previews %}<div class="card pad" style="margin-bottom:10px"><h3>{{ d.hostname }} <span class="muted small">{{ d.mgmt_ip }}</span></h3><pre class="pre" style="max-height:260px">{{ cfg }}</pre>
+{% if present %}<p class="small muted">Already in the running configuration (no effect): {{ present|join:"; "|truncatechars:400 }}</p>{% endif %}</div>{% endfor %}{% endif %}
+<div class="actions mt"><button class="btn" name="step" value="preview">Preview</button>{% if previews %}<button class="btn btn-primary" name="step" value="submit">Submit for approval</button>{% endif %}</div>
+</div>
+<div class="card table-card"><div class="pad"><h2 class="mb0">Devices</h2><p class="small muted">{% if tpl %}Only platforms this template is written for ({{ tpl.platforms }}).{% else %}Platforms that support changes.{% endif %}</p></div>
+<table class="tbl compact"><thead><tr><th><input type="checkbox" data-check-all="devices"></th><th>Device</th><th>Site</th></tr></thead><tbody>
+{% for d in devices %}<tr><td><input type="checkbox" name="devices" value="{{ d.pk }}" {% if d.pk in sel %}checked{% endif %}></td><td>{{ d.hostname }}<div class="small muted">{{ d.driver.label }}</div></td><td class="small">{{ d.site.name|default:"" }}</td></tr>{% empty %}<tr><td colspan="3" class="empty">No device fits.</td></tr>{% endfor %}</tbody></table></div>
+</div></form>
+{% endblock %}

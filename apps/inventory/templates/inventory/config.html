@@ -1,0 +1,12 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}{{ d.hostname }} config{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'inventory:list' %}">Devices</a> / <a href="{% url 'inventory:detail' d.pk %}?tab=config">{{ d.hostname }}</a></p>
+<h1>Configuration of {{ s.collected_at|date:"Y-m-d H:i" }}</h1>
+<p>{% if other %}Compared with {{ other.collected_at|date:"Y-m-d H:i" }}: <span class="ok-text">+{{ s.added }}</span> / <span style="color:var(--bad)">−{{ s.removed }}</span> lines.{% else %}First saved version.{% endif %}</p></div>
+<div class="actions"><form method="get" class="inline-form"><select name="vs" onchange="this.form.submit()"><option value="">Compare with previous</option>{% for v in versions %}{% if v.pk != s.pk %}<option value="{{ v.pk }}" {% if other and other.pk == v.pk %}selected{% endif %}>{{ v.collected_at|date:"Y-m-d H:i" }}</option>{% endif %}{% endfor %}</select></form>
+<a class="btn" href="?full=1">Full text</a></div></div>
+{% if diff %}<div class="diffv">{% for line in diff %}<div class="{{ line|diffclass }}">{{ line }}</div>{% endfor %}</div>
+{% elif diff is not None %}<div class="card empty-state"><p>No differences.</p></div>
+{% else %}<pre class="pre tall">{{ s.text }}</pre>{% endif %}
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "core/base.html" %}
+{% block title %}Audit report{% endblock %}
+{% block bodyclass %}printable{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Network security &amp; compliance report</h1><p>Generated {{ generated|date:"j F Y, H:i" }} by Network VMap · {{ devices }} managed devices. Use <strong>Print → Save as PDF</strong> to hand it to an auditor.</p></div>
+<div class="actions"><button class="btn btn-primary" type="button" onclick="window.print()">Print / save as PDF</button></div></div>
+
+<div class="card"><h2>1. Summary</h2>
+<div class="grid grid-4">
+<div class="stat"><span class="n">{{ scores.sec|default:"–"|floatformat:0 }}</span><span class="l">Average security score (0-100)</span></div>
+<div class="stat"><span class="n">{{ scores.comp|default:"–"|floatformat:0 }}</span><span class="l">Average configuration-standard score</span></div>
+<div class="stat"><span class="n {% if sev.critical or sev.high %}bad{% endif %}">{{ sev.critical|add:sev.high }}</span><span class="l">Critical and high findings open</span></div>
+<div class="stat"><span class="n {% if psirt %}warn{% endif %}">{{ psirt|length }}</span><span class="l">Vendor advisories affecting devices</span></div></div>
+<p class="small">Devices by vendor: {% for v in by_vendor %}{{ v.vendor|default:"unknown" }} {{ v.n }}{% if not forloop.last %}, {% endif %}{% endfor %}. Open findings by severity: critical {{ sev.critical }}, high {{ sev.high }}, medium {{ sev.medium }}, low {{ sev.low }}.</p></div>
+
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">2. Open security and best-practice findings</h2><p class="small muted">Grouped by check, worst first. Each check lists the devices it affects and what to do.</p></div>
+<table class="tbl"><thead><tr><th style="width:90px">Severity</th><th>Finding</th><th>Devices</th></tr></thead><tbody>
+{% for g in checks %}<tr><td>{% sev g.severity %}</td><td><strong>{{ g.title }}</strong> <span class="mono small muted">{{ g.id }}</span><div class="small">{{ g.recommendation|truncatechars:240 }}</div></td><td class="small">{{ g.devices|length }}: {{ g.devices|join:", " }}</td></tr>
+{% empty %}<tr><td colspan="3" class="empty">No open security findings.</td></tr>{% endfor %}</tbody></table></div>
+
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">3. Configuration standards</h2></div><table class="tbl"><thead><tr><th>Standard</th><th>Devices checked</th><th>Fully compliant</th><th>Failed rules (total)</th></tr></thead><tbody>
+{% for s in compliance %}<tr><td>{{ s.name }}</td><td>{{ s.devices }}</td><td>{{ s.compliant }} ({% widthratio s.compliant s.devices 100 %}%)</td><td>{{ s.failed_rules }}</td></tr>
+{% empty %}<tr><td colspan="4" class="empty">No standards evaluated yet.</td></tr>{% endfor %}</tbody></table></div>
+
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">4. Vendor security advisories (PSIRT)</h2></div><table class="tbl"><thead><tr><th>Severity</th><th>Advisory</th><th>Affected devices</th></tr></thead><tbody>
+{% for p in psirt %}<tr><td>{% sev p.advisory__severity %}</td><td><strong>{{ p.advisory__title }}</strong><div class="mono small muted">{{ p.advisory__advisory_id }}</div></td><td class="small">{{ p.n }}: {{ p.devices|join:", " }}</td></tr>
+{% empty %}<tr><td colspan="3" class="empty">No device is affected by a known advisory.</td></tr>{% endfor %}</tbody></table></div>
+
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">5. Lifecycle: end of support, software and contracts</h2></div><table class="tbl"><thead><tr><th>Severity</th><th>Device</th><th>Finding</th></tr></thead><tbody>
+{% for f in life %}<tr><td>{% sev f.severity %}</td><td>{{ f.device.hostname }}</td><td>{{ f.title }}<div class="small muted">{{ f.detail|truncatechars:200 }}</div></td></tr>
+{% empty %}<tr><td colspan="3" class="empty">No lifecycle issues.</td></tr>{% endfor %}</tbody></table></div>
+
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">6. Accepted risks</h2><p class="small muted">Findings a person reviewed and accepted, with their reason.</p></div><table class="tbl"><thead><tr><th>Device</th><th>Finding</th><th>Accepted by</th><th>Reason</th></tr></thead><tbody>
+{% for f in accepted %}<tr><td>{{ f.device.hostname }}</td><td>{{ f.title }} <span class="small muted">{{ f.key }}</span></td><td>{{ f.accepted_by }}</td><td class="small">{{ f.accepted_note }}</td></tr>
+{% empty %}<tr><td colspan="4" class="empty">None.</td></tr>{% endfor %}</tbody></table></div>
+
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">7. Lowest security scores</h2></div><table class="tbl"><thead><tr><th>Device</th><th>Site</th><th>Model</th><th>Software</th><th>Security</th><th>Standards</th></tr></thead><tbody>
+{% for d in worst %}<tr><td>{{ d.hostname }} <span class="mono small muted">{{ d.mgmt_ip }}</span></td><td>{{ d.site|default:"–" }}</td><td class="small">{{ d.vendor }} {{ d.model }}</td><td class="mono small">{{ d.os_version }}</td><td>{{ d.security_score }}</td><td>{{ d.compliance_score|default_if_none:"–" }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

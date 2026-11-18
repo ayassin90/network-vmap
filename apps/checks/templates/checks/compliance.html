@@ -1,0 +1,8 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}{{ r.device.hostname }} · {{ r.standard.name }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'checks:standard' r.standard.pk %}">{{ r.standard.name }}</a></p><h1>{{ r.device.hostname }} {% include "core/_score.html" with v=r.score %}</h1><p>{{ r.passed }} rules met, {{ r.failed }} missing. Checked {{ r.ran_at|date:"Y-m-d H:i" }}.</p></div>
+<div class="actions"><button class="btn" onclick="window.print()">Print report</button></div></div>
+<div class="card table-card"><table class="tbl"><thead><tr><th></th><th>Rule</th><th>Where it fails</th><th>Fix</th></tr></thead><tbody>
+{% for dt in r.details %}<tr><td>{% if dt.ok %}<span class="ok-text">✓</span>{% else %}{% sev dt.severity %}{% endif %}</td><td><strong>{{ dt.name }}</strong></td><td class="small">{% if not dt.ok %}{{ dt.missing|join:", "|default:"missing from the configuration" }}{% else %}<span class="muted">met</span>{% endif %}</td><td>{% if not dt.ok and dt.remediation %}<pre class="pre" style="max-height:160px">{{ dt.remediation }}</pre>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

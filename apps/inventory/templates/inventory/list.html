@@ -1,0 +1,40 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}Devices{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Devices <span class="muted" style="font-weight:400">{{ total }}</span></h1><p>Every switch and router VMap manages. Select rows for bulk actions; click a name for its full picture.</p></div>
+<div class="actions">{% export_link %}{% if is_operator %}<a class="btn" href="{% url 'inventory:discovery' %}">Discover</a><a class="btn" href="{% url 'inventory:bulk_add' %}">Add many</a><a class="btn btn-primary" href="{% url 'inventory:add' %}">Add device</a>{% endif %}</div></div>
+<form class="filters" method="get">
+  <input name="q" value="{{ q }}" placeholder="Name, IP, model, serial, version, tag…">
+  <select name="site" onchange="this.form.submit()"><option value="">All sites</option>{% for s in sites %}<option value="{{ s.pk }}" {% if request.GET.site == s.pk|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>{% endfor %}</select>
+  <select name="status" onchange="this.form.submit()"><option value="">Any status</option>{% for k,l in statuses %}<option value="{{ k }}" {% if request.GET.status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <select name="role" onchange="this.form.submit()"><option value="">Any role</option>{% for k,l in roles %}<option value="{{ k }}" {% if request.GET.role == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <select name="platform" onchange="this.form.submit()"><option value="">Any platform</option>{% for k,l in platforms %}<option value="{{ k }}" {% if request.GET.platform == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+</form>
+<form method="post" action="{% url 'inventory:bulk' %}">{% csrf_token %}
+{% if is_operator %}<div class="filters">
+  <span class="muted small">With selected:</span>
+  <button class="btn btn-sm" name="action" value="collect">Collect now</button>
+  <button class="btn btn-sm" name="action" value="test">Test connection</button>
+  <select name="role" style="height:26px"><option value="core">Core</option><option value="distribution">Distribution</option><option value="access">Access</option><option value="datacenter">Data centre</option><option value="router">Router</option></select><button class="btn btn-sm" name="action" value="role">Set role</button>
+  <select name="site" style="height:26px"><option value="">No site</option>{% for s in sites %}<option value="{{ s.pk }}">{{ s.name }}</option>{% endfor %}</select><button class="btn btn-sm" name="action" value="site">Set site</button>
+  {% if is_admin %}<button class="btn btn-sm btn-danger" name="action" value="delete" data-confirm="Delete the selected devices and all their collected data?" data-confirm-danger>Delete</button>{% endif %}
+</div>{% endif %}
+<div class="card table-card"><table class="tbl">
+<thead><tr><th style="width:28px"><input type="checkbox" data-check-all="ids"></th>
+<th><a href="?sort={% if sort == 'hostname' %}-{% endif %}hostname">Device</a></th><th>Model</th><th><a href="?sort=os_version">Software</a></th><th>Site · role</th><th>Status</th>
+<th>CPU</th><th title="Security score"><a href="?sort=security_score">Security</a></th><th title="Interface health"><a href="?sort=health_score">Health</a></th><th title="Config standards"><a href="?sort=compliance_score">Standards</a></th><th>Alerts</th><th><a href="?sort=-last_collected">Collected</a></th></tr></thead>
+<tbody>{% for d in page %}<tr>
+<td><input type="checkbox" name="ids" value="{{ d.pk }}"></td>
+<td><a href="{% url 'inventory:detail' d.pk %}"><strong>{{ d.hostname }}</strong></a>{% if d.demo %} <span class="tag">demo</span>{% endif %}<div class="muted small mono">{{ d.mgmt_ip }}{% if d.collector %} · via {{ d.collector.name }}{% endif %}</div></td>
+<td>{{ d.model|default:"–" }}<div class="muted small">{{ d.driver.label }}</div></td>
+<td class="mono">{{ d.os_version|default:"–" }}</td>
+<td>{{ d.site.name|default:"–" }}<div class="muted small">{{ d.get_role_display }}</div></td>
+<td>{% badge d.status d.get_status_display %}</td>
+<td class="small">{% if d.cpu is not None %}<span {% if d.cpu >= 80 %}style="color:var(--bad);font-weight:600"{% endif %}>{{ d.cpu }}%</span>{% else %}<span class="muted">–</span>{% endif %}</td>
+<td>{% include "core/_score.html" with v=d.security_score %}</td><td>{% include "core/_score.html" with v=d.health_score %}</td><td>{% include "core/_score.html" with v=d.compliance_score %}</td>
+<td>{% if d.n_alerts %}<a href="{% url 'alerts:list' %}?q={{ d.hostname }}"><span class="badge badge-bad">{{ d.n_alerts }}</span></a>{% else %}<span class="muted">0</span>{% endif %}</td>
+<td class="muted small">{{ d.last_collected|ago }}</td></tr>
+{% empty %}<tr><td colspan="12" class="empty">No devices match. {% if is_operator %}<a href="{% url 'inventory:add' %}">Add one</a> or <a href="{% url 'inventory:discovery' %}">run a discovery</a>.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+</form>
+{% include "core/pager.html" %}
+{% endblock %}

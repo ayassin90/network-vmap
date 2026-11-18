@@ -1,0 +1,21 @@
+{% extends "core/base.html" %}
+{% block title %}{{ ch.number }}{% endblock %}
+{% block head %}{% if auto %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'changes:list' %}">Changes</a></p><h1>{{ ch.number }} · {{ ch.title }} {% badge ch.status ch.get_status_display %}</h1>
+<p>{{ ch.get_kind_display }} · requested by {{ ch.created_by }} {{ ch.created_at|ago }}{% if ch.approved_by %} · approved by {{ ch.approved_by }}{% endif %}{% if ch.scheduled_for %} · starts {{ ch.scheduled_for|date:"Y-m-d H:i" }}{% endif %}{% if ch.save_config %} · saves the config{% endif %}{% if ch.rollback_on_failure %} · auto-rollback{% endif %}{% if ch.emergency %} · <strong>emergency</strong>{% endif %}</p>
+{% if ch.reason %}<p>Reason: {{ ch.reason }}</p>{% endif %}</div>
+<div class="actions"><form method="post" class="inline-form">{% csrf_token %}
+{% if ch.status == "pending" and is_admin %}<button class="btn btn-primary" name="action" value="approve" data-confirm="Approve {{ ch.number }}? It runs on {{ targets|length }} device(s){% if not ch.scheduled_for %} straight away{% endif %}.">Approve</button><button class="btn btn-danger" name="action" value="reject">Reject</button>{% endif %}
+{% if ch.status in "draft,pending,approved" and is_operator %}<button class="btn" name="action" value="cancel">Cancel</button>{% endif %}</form></div></div>
+<div class="row-gap" style="margin-bottom:12px">{% for s, n in counts.items %}{% badge s %} <span class="small">{{ n }}</span> {% endfor %}</div>
+<div class="stack-sm">{% for t in targets %}<details class="card" {% if forloop.first or t.status == "failed" or t.status == "rolled_back" %}open{% endif %}>
+<summary class="pad row-gap" style="cursor:pointer;list-style:none"><strong style="min-width:200px">{{ t.device.hostname }}</strong>{% badge t.status t.get_status_display %}
+{% if t.started_at %}<span class="small muted">{{ t.started_at|date:"H:i:s" }}{% if t.finished_at %} – {{ t.finished_at|date:"H:i:s" }}{% endif %}</span>{% endif %}
+<span style="margin-left:auto" class="row-gap">{% if t.pre_snapshot and t.status in "done,failed,rolled_back" %}{% with last=t.device.latest_config %}{% if last and last.pk != t.pre_snapshot.pk %}<a class="btn btn-sm" href="{% url 'inventory:config' t.device_id last.pk %}?vs={{ t.pre_snapshot.pk }}">Config diff</a>{% endif %}{% endwith %}{% endif %}
+{% if t.backup_name and t.status == "done" and is_admin and ch.kind != "rollback" %}<form method="post" class="inline-form" data-confirm="Restore {{ t.device.hostname }} to the configuration saved before this change?" data-confirm-danger>{% csrf_token %}<input type="hidden" name="target" value="{{ t.pk }}"><button class="btn btn-sm btn-danger" name="action" value="rollback">Roll back</button></form>{% endif %}</span></summary>
+<div class="pad find-cols" style="padding-top:0"><div><p class="small muted" style="margin:0 0 4px">Sent to the device</p><pre class="pre">{{ t.config }}{% if t.config_after %}
+! after 5 seconds:
+{{ t.config_after }}{% endif %}</pre>{% if t.already_present %}<p class="small muted">Already present: {{ t.already_present|join:"; "|truncatechars:300 }}</p>{% endif %}</div>
+<div><p class="small muted" style="margin:0 0 4px">Log</p><pre class="pre">{{ t.log|default:"Not started." }}</pre></div></div></details>{% endfor %}</div>
+{% endblock %}

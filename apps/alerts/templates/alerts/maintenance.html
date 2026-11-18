@@ -1,0 +1,17 @@
+{% extends "core/base.html" %}
+{% block title %}Maintenance windows{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Maintenance windows &amp; change freezes {% help 'maintenance' %}</h1><p>During a maintenance window, new alerts for the covered devices are recorded but muted (no notifications). During a change freeze, upgrades and configuration changes wait until it ends (administrators can still run an emergency change).</p></div></div>
+<div class="split"><div>
+<h2>Active now</h2><div class="card table-card">{% include "alerts/_windows.html" with ws=active %}</div>
+<h2 class="mt-lg">Upcoming</h2><div class="card table-card">{% include "alerts/_windows.html" with ws=upcoming %}</div>
+<h2 class="mt-lg">Recent</h2><div class="card table-card">{% include "alerts/_windows.html" with ws=past %}</div></div>
+{% if is_operator %}<form method="post" class="card pad form" style="max-width:none">{% csrf_token %}<h2>New window</h2>
+<label>Name<input name="name" required placeholder="Core firmware upgrade"></label>
+<label>Starts<input type="datetime-local" name="starts" required></label><label>Ends<input type="datetime-local" name="ends" required></label>
+<label class="check"><input type="checkbox" name="mute" checked> Mute alerts</label><label class="check"><input type="checkbox" name="freeze"> Change freeze (block upgrades and config changes)</label>
+<label class="check"><input type="checkbox" name="all_devices"> Every device</label>
+<label>Sites<select name="sites" multiple size="3">{% for s in sites %}<option value="{{ s.pk }}">{{ s.name }}</option>{% endfor %}</select></label>
+<label>Devices<select name="devices" multiple size="6">{% for d in devices %}<option value="{{ d.pk }}">{{ d.hostname }}</option>{% endfor %}</select></label>
+<label>Note<input name="note"></label><div><button class="btn btn-primary">Save window</button></div></form>{% endif %}</div>
+{% endblock %}

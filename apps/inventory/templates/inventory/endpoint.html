@@ -1,0 +1,13 @@
+{% extends "core/base.html" %}
+{% block title %}{{ ep.mac_display }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'inventory:endpoints' %}">Find endpoint</a></p><h1 class="mono">{{ ep.mac_display }}</h1>
+<p>{{ ep.name|default:ep.vendor|default:"Unknown device" }}{% if ep.ip %} · {{ ep.ip }}{% endif %}{% if ep.kind %} · {{ ep.kind }}{% endif %}</p></div></div>
+<div class="grid grid-2"><div class="card pad"><h2>Plugged in at</h2>{% if ep.device %}<p style="font-size:16px"><a href="{% url 'inventory:detail' ep.device_id %}"><strong>{{ ep.device.hostname }}</strong></a> port <strong class="mono">{{ ep.interface }}</strong>, VLAN {{ ep.vlan }}</p>
+<p class="muted small">{{ ep.device.site.name|default:"" }} · first seen {{ ep.first_seen|date:"Y-m-d H:i" }} · last seen {{ ep.last_seen|ago }} · moved {{ ep.moves }} time{{ ep.moves|pluralize }}</p>{% endif %}
+{% if ep.vendor %}<p class="small">Vendor hint: {{ ep.vendor }}</p>{% endif %}</div>
+<div class="card table-card"><div class="pad"><h2 class="mb0">Every switch that sees this MAC</h2><p class="muted small">Trunks and uplinks also learn it; the edge port above is the one with no switch behind it.</p></div><table class="tbl compact"><tbody>
+{% for m in seen %}<tr><td>{{ m.device.hostname }}</td><td class="mono">{{ m.interface }}</td><td>VLAN {{ m.vlan }}</td></tr>{% empty %}<tr><td class="empty">Not in any MAC table right now.</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">History</h2></div><table class="tbl compact"><tbody>
+{% for ev in events %}<tr><td class="small muted" style="width:160px">{{ ev.at|date:"Y-m-d H:i" }}</td><td>{{ ev.get_kind_display }}</td><td class="small">{% if ev.from_where %}{{ ev.from_where }} → {% endif %}<strong>{{ ev.to_where }}</strong></td></tr>{% empty %}<tr><td class="empty">No history.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

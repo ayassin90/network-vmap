@@ -1,0 +1,7 @@
+{% extends "core/base.html" %}
+{% block title %}Weekly summary{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Weekly summary {% help 'reports#summary' %}</h1><p>What changed and what needs attention. This is the email VMap sends on the day and hour set in Settings.</p></div>
+<div class="actions">{% if is_admin %}<form method="post">{% csrf_token %}<button class="btn btn-primary">Send now</button></form>{% endif %}</div></div>
+<div class="card pad" style="max-width:760px">{% include "reports/_summary_body.html" %}</div>
+{% endblock %}

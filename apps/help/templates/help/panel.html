@@ -1,0 +1,2 @@
+<div class="help-panel-head"><strong>{{ t.title }}</strong><span><a class="small" href="{% url 'help:topic' t.slug %}">Full page</a> · <a class="small" href="{% url 'help:index' %}">All help</a></span></div>
+<div class="help-panel-body">{% include "help/_body.html" %}</div>

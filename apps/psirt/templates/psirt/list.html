@@ -1,0 +1,16 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}PSIRT advisories{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>PSIRT advisories {% help 'psirt' %}</h1><p>Known vendor security advisories that affect the software your devices run.</p></div>
+<div class="actions"><a class="btn" href="?all=1">Show all advisories</a>{% if is_operator and configured %}<form method="post" action="{% url 'psirt:sync' %}">{% csrf_token %}<button class="btn btn-primary">Check with Cisco now</button></form>{% endif %}</div></div>
+{% if not configured %}<div class="alert alert-warning"><strong>Exact version matching is not set up</strong>Right now VMap flags only a built-in set of critical advisories where the risky feature is visible in the configuration. Add a free Cisco openVuln API key in <a href="{% url 'core:settings' %}">Settings</a> to match every advisory to each software version.</div>
+{% else %}<p class="muted small">Last check with Cisco: {{ last_sync|default:"never" }} (runs daily).</p>{% endif %}
+<div class="grid grid-3">{% for s, n in stats.items %}<div class="card stat"><span class="n {% if n and s != 'medium' %}bad{% elif n %}warn{% endif %}">{{ n }}</span><span class="l">Devices exposed to {{ s }} advisories</span></div>{% endfor %}</div>
+<div class="split mt">
+<div class="card table-card"><table class="tbl"><thead><tr><th>Advisory</th><th>Severity</th><th>CVSS</th><th>Devices</th><th>Published</th><th>Source</th></tr></thead><tbody>
+{% for a in advisories %}<tr><td><a href="{% url 'psirt:detail' a.pk %}"><strong>{{ a.title }}</strong></a><div class="small muted">{{ a.advisory_id }}{% if a.cves %} · {{ a.cves|truncatechars:60 }}{% endif %}</div></td><td>{% sev a.severity %}</td><td>{{ a.cvss|default:"–" }}</td><td>{% if a.n %}<strong>{{ a.n }}</strong>{% else %}<span class="muted">0</span>{% endif %}</td><td class="small">{{ a.published|date:"Y-m-d" }}</td><td class="small">{{ a.get_source_display }}</td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No advisory matches your devices. 🎉</td></tr>{% endfor %}</tbody></table></div>
+<div class="card table-card"><div class="pad"><h2 class="mb0">Most exposed versions</h2></div><table class="tbl compact"><tbody>{% for v in versions %}<tr><td><span class="tag">{{ v.device__os_type|upper }}</span> <strong>{{ v.device__os_version }}</strong><div class="small muted">{{ v.n }} device{{ v.n|pluralize }}</div></td><td class="right">{{ v.a }} advisor{{ v.a|pluralize:"y,ies" }}</td></tr>{% empty %}<tr><td class="empty">None.</td></tr>{% endfor %}</tbody></table>
+<div class="pad small"><a href="{% url 'upgrades:list' %}">Plan upgrades →</a></div></div>
+</div>
+{% endblock %}

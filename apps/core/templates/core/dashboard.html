@@ -1,0 +1,69 @@
+{% extends "core/base.html" %}{% load ui humanize %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Network overview</h1><p>Health, risk and activity across every managed switch and router. Numbers update after each collection or poll.</p></div>
+<div class="actions"><a class="btn" href="{% url 'topology:l2' %}">Open L2 map</a>{% if is_operator %}<a class="btn btn-primary" href="{% url 'inventory:add' %}">Add device</a>{% endif %}</div></div>
+
+{% if empty %}
+<div class="card empty-state">
+  <h2>Let's map your network</h2>
+  <p>Start by saving an SSH (and ideally SNMP) credential, then either add switches one by one, paste a list, or point a discovery at one core switch: VMap follows CDP and LLDP neighbours to find the rest.</p>
+  <div class="actions"><a class="btn" href="{% url 'inventory:setup' %}">1. Add credentials</a><a class="btn" href="{% url 'inventory:discovery' %}">2. Discover from a seed</a><a class="btn" href="{% url 'inventory:bulk_add' %}">or paste a device list</a></div>
+  <p class="small">Want to look around first? An administrator can load sample data with <code>manage.py load_demo</code>.</p>
+</div>
+{% else %}
+<div class="grid grid-4">
+  <a class="card stat" href="{% url 'inventory:list' %}"><span class="n">{{ n_devices }}</span><span class="l">Devices · <span class="ok-text">{{ by_status.up|default:0 }} up</span>{% if n_unreach %} · <span style="color:var(--bad)">{{ n_unreach }} unreachable</span>{% endif %}</span></a>
+  <a class="card stat" href="{% url 'alerts:list' %}"><span class="n {% if sev.critical %}bad{% elif sev.high %}warn{% endif %}">{{ sev.critical|add:sev.high|add:sev.medium|add:sev.low }}</span><span class="l">Open alerts · {{ sev.critical }} critical, {{ sev.high }} high{% if n_suppressed %} · {{ n_suppressed }} suppressed{% endif %}</span></a>
+  <a class="card stat" href="{% url 'psirt:list' %}"><span class="n {% if n_psirt_crit %}bad{% endif %}">{{ n_psirt_dev }}</span><span class="l">Devices with PSIRT exposure · {{ n_psirt_crit }} critical</span></a>
+  <a class="card stat" href="{% url 'inventory:interfaces' %}"><span class="n {% if n_if_issues %}warn{% endif %}">{{ n_if_issues }}</span><span class="l">Interface problems · {{ n_half }} half duplex, {{ n_errdis }} err-disabled</span></a>
+</div>
+
+<div class="grid grid-3 mt">
+  <div class="card pad"><h2>Posture {% help 'dashboard#scores' %}</h2>
+    <div class="rings">
+      {% with v=scores.sec %}<div><div class="ring tone-{{ v|score_tone }}" style="--v:{{ v|default:0|floatformat:0 }}"><b>{{ v|default:"–"|floatformat:0 }}</b></div><div class="lbl">Security</div></div>{% endwith %}
+      {% with v=scores.health %}<div><div class="ring tone-{{ v|score_tone }}" style="--v:{{ v|default:0|floatformat:0 }}"><b>{{ v|default:"–"|floatformat:0 }}</b></div><div class="lbl">Interface health</div></div>{% endwith %}
+      {% with v=scores.comp %}<div><div class="ring tone-{{ v|score_tone }}" style="--v:{{ v|default:0|floatformat:0 }}"><b>{{ v|default:"–"|floatformat:0 }}</b></div><div class="lbl">Config standards</div></div>{% endwith %}
+    </div>
+    <p class="muted small mt">Averages across devices. 100 is perfect; each open finding takes points off by severity.</p>
+  </div>
+  <div class="card table-card"><div class="pad"><h2 class="mb0">Lowest security scores</h2></div>
+    <table class="tbl compact"><tbody>{% for d in worst %}<tr><td><a href="{% url 'inventory:detail' d.pk %}?tab=findings"><strong>{{ d.hostname }}</strong></a><div class="muted small">{{ d.model }} · {{ d.os_version }}</div></td><td class="right">{% include "core/_score.html" with v=d.security_score %}</td></tr>{% empty %}<tr><td class="empty">No scores yet.</td></tr>{% endfor %}</tbody></table></div>
+  <div class="card table-card"><div class="pad"><h2 class="mb0">Software versions</h2></div>
+    <table class="tbl compact"><tbody>{% for v in versions %}<tr><td><span class="tag">{{ v.os_type|upper }}</span> <strong>{{ v.os_version }}</strong></td><td class="right">{{ v.n }} device{{ v.n|pluralize }}</td></tr>{% empty %}<tr><td class="empty">Not collected yet.</td></tr>{% endfor %}</tbody></table>
+    <div class="pad small"><a href="{% url 'upgrades:list' %}">Plan upgrades →</a></div></div>
+</div>
+
+<div class="grid grid-2 mt">
+  <div class="card table-card"><div class="pad"><h2 class="mb0">Most common security and practice gaps</h2></div>
+    <table class="tbl compact"><tbody>{% for r in top_sec %}<tr><td>{% sev r.severity %}</td><td><a href="{% url 'checks:findings' %}?q={{ r.title|urlencode }}">{{ r.title }}</a></td><td class="right">{{ r.n }}</td></tr>{% empty %}<tr><td class="empty">No open findings.</td></tr>{% endfor %}</tbody></table></div>
+  <div class="card table-card"><div class="pad"><h2 class="mb0">Interface problems by type</h2></div>
+    <table class="tbl compact"><tbody>{% for r in by_check %}<tr><td><a href="{% url 'inventory:interfaces' %}">{{ r.title }}</a></td><td class="right">{{ r.n }}</td></tr>{% empty %}<tr><td class="empty">All interfaces look healthy.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+
+<div class="grid grid-3 mt">
+  <div class="card table-card"><div class="pad"><h2 class="mb0">Latest alerts</h2></div>
+    <table class="tbl compact"><tbody>{% for a in recent_alerts %}<tr><td>{% sev a.severity %}</td><td><a href="{% url 'alerts:detail' a.pk %}">{{ a.title|truncatechars:70 }}</a><div class="muted small">{{ a.last_seen|ago }}</div></td></tr>{% empty %}<tr><td class="empty">Quiet. No open alerts.</td></tr>{% endfor %}</tbody></table></div>
+  <div class="card table-card"><div class="pad"><h2 class="mb0">Busiest ports</h2></div>
+    <table class="tbl compact"><tbody>{% for i in busy %}<tr><td><a href="{% url 'inventory:interface' i.device_id i.pk %}">{{ i.device.hostname }} <span class="mono">{{ i.short }}</span></a><div class="muted small">{{ i.in_rate_bps|bps }} in · {{ i.out_rate_bps|bps }} out</div></td><td style="width:90px"><div class="mini-bar"><i class="{% if i.utilization >= 80 %}hot{% elif i.utilization >= 50 %}warm{% endif %}" style="width:{{ i.utilization|default:0 }}%"></i></div><div class="small muted right">{{ i.utilization }}%</div></td></tr>{% empty %}<tr><td class="empty">No throughput data yet.</td></tr>{% endfor %}</tbody></table></div>
+  <div class="card table-card"><div class="pad"><h2 class="mb0">Recent config changes</h2></div>
+    <table class="tbl compact"><tbody>{% for c in changes %}<tr><td><a href="{% url 'inventory:config' c.device_id c.pk %}">{{ c.device.hostname }}</a><div class="muted small">{{ c.collected_at|ago }}</div></td><td class="right small"><span class="ok-text">+{{ c.added }}</span> <span style="color:var(--bad)">−{{ c.removed }}</span></td></tr>{% empty %}<tr><td class="empty">No changes in the last 7 days.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+
+<div class="grid grid-4 mt">
+  <a class="card stat" href="{% url 'inventory:endpoints' %}"><span class="n">{{ n_endpoints }}</span><span class="l">Endpoints located on access ports · find any MAC or IP</span></a>
+  <a class="card stat" href="{% url 'lifecycle:overview' %}"><span class="n {% if n_lifecycle %}warn{% endif %}">{{ n_lifecycle }}</span><span class="l">Devices with lifecycle risk (support ending, old software, no contract)</span></a>
+  <a class="card stat" href="{% url 'inventory:stp' %}"><span class="n {% if n_stp %}warn{% endif %}">{{ n_stp }}</span><span class="l">Spanning-tree and VLAN consistency issues</span></a>
+  <a class="card stat" href="{% url 'inventory:list' %}?sort=-cpu"><span class="n {% if n_health %}warn{% endif %}">{{ n_health }}</span><span class="l">Devices with hardware or CPU/memory problems</span></a>
+  <a class="card stat" href="{% url 'events:list' %}"><span class="n {% if n_events_bad %}warn{% endif %}">{{ n_events }}</span><span class="l">Syslog / trap events in the last hour · {{ n_events_bad }} error or worse</span></a>
+  <a class="card stat" href="{% url 'changes:list' %}?status=pending"><span class="n {% if n_changes_pending %}warn{% endif %}">{{ n_changes_pending }}</span><span class="l">Changes waiting for approval</span></a>
+</div>
+<div class="grid grid-4 mt">
+  <a class="card stat" href="{% url 'alerts:cases' %}"><span class="n">{{ cases_open }}</span><span class="l">Open cases · {{ cases_mine }} assigned to you</span></a>
+  <a class="card stat" href="{% url 'jobs:list' %}?status=failed"><span class="n {% if jobs_failed %}warn{% endif %}">{{ jobs_failed }}</span><span class="l">Failed jobs (24 h) · {{ jobs_queued }} queued or running</span></a>
+  <a class="card stat" href="{% url 'jobs:collectors' %}"><span class="n">{{ collectors|length }}</span><span class="l">Remote collectors{% for c in collectors %} · {{ c.name }} {% if c.online %}online{% else %}offline{% endif %}{% endfor %}</span></a>
+  <a class="card stat" href="{% url 'inventory:platforms' %}"><span class="n">Cisco · Aruba · Huawei</span><span class="l">SSH drivers today · 23 more vendors over SNMP · platform guide</span></a>
+</div>
+{% endif %}
+{% endblock %}

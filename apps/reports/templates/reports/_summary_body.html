@@ -1,0 +1,11 @@
+{% load ui %}<table width="100%" cellpadding="0" cellspacing="0" style="font-family:Inter,Segoe UI,Arial,sans-serif;font-size:14px;color:#18181b">
+<tr><td style="padding:0 0 12px"><strong style="font-size:18px">Network summary</strong><br><span style="color:#71717a">{{ since|date:"d M" }} – {{ now|date:"d M Y" }}</span></td></tr>
+<tr><td style="padding:8px 0"><strong>{{ devices }}</strong> devices{% if down %}, <strong style="color:#dc2626">{{ down|length }} unreachable</strong> ({% for d in down %}{{ d.hostname }}{% if not forloop.last %}, {% endif %}{% endfor %}){% endif %}.
+Open alerts: {% for s, n in alerts_open.items %}{{ n }} {{ s }}{% if not forloop.last %}, {% endif %}{% empty %}none{% endfor %} ({{ alerts_new }} new this period).
+Scores: security {{ scores.security|default:"–" }}, health {{ scores.health|default:"–" }}, standards {{ scores.compliance|default:"–" }}.</td></tr>
+<tr><td style="padding:8px 0">{{ findings_fixed }} findings fixed · {{ psirt }} devices exposed to critical/high advisories · {{ pending }} change{{ pending|pluralize }} waiting for approval · {{ cases_open }} open case{{ cases_open|pluralize }} · {{ jobs_failed }} failed job{{ jobs_failed|pluralize }}.</td></tr>
+{% if alerts_top %}<tr><td style="padding:12px 0 4px"><strong>Critical and high alerts</strong></td></tr>{% for a in alerts_top %}<tr><td style="padding:2px 0">[{{ a.severity }}] {{ a.title }} <span style="color:#71717a">({{ a.first_seen|date:"d M H:i" }})</span></td></tr>{% endfor %}{% endif %}
+{% if findings_new %}<tr><td style="padding:12px 0 4px"><strong>New serious findings</strong></td></tr>{% for f in findings_new %}<tr><td style="padding:2px 0">[{{ f.severity }}] {{ f.device.hostname }}: {{ f.title }}{% if f.key and f.category == "interface" %} ({{ f.key }}){% endif %}</td></tr>{% endfor %}{% endif %}
+{% if lifecycle %}<tr><td style="padding:12px 0 4px"><strong>Lifecycle</strong></td></tr>{% for f in lifecycle %}<tr><td style="padding:2px 0">{{ f.device.hostname }}: {{ f.title }}</td></tr>{% endfor %}{% endif %}
+{% if uplinks %}<tr><td style="padding:12px 0 4px"><strong>Busiest uplinks (95th percentile)</strong></td></tr>{% for r in uplinks %}<tr><td style="padding:2px 0">{{ r.i.device.hostname }} {{ r.i.short }}: {{ r.p95|bps }}{% if r.util95 is not None %} ({{ r.util95 }}%){% endif %}</td></tr>{% endfor %}{% endif %}
+</table>

@@ -1,0 +1,3 @@
+<div class="help-intro">{{ t.intro|safe }}</div>
+{% if t.sections|length > 4 %}<nav class="help-toc">{% for s in t.sections %}<a href="#h-{{ s.anchor }}" data-anchor="{{ s.anchor }}">{{ s.label }}</a>{% endfor %}</nav>{% endif %}
+{% for s in t.sections %}<section class="help-sec" id="h-{{ s.anchor }}"><h3>{{ s.label }}</h3>{{ s.html|safe }}</section>{% endfor %}

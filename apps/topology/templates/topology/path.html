@@ -1,0 +1,20 @@
+{% extends "core/base.html" %}
+{% block title %}Path trace{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Path trace {% help 'path' %}</h1><p>How traffic from one address reaches another, hop by hop, using the MAC/ARP tables, the switch links (only those carrying the VLAN and not blocked by spanning tree) and the routing tables VMap collected.</p></div></div>
+<form class="filters" method="get"><input name="src" value="{{ src }}" placeholder="From IP, e.g. 10.10.10.25" style="width:220px" required> <span class="muted">→</span> <input name="dst" value="{{ dst }}" placeholder="To IP, e.g. 10.10.30.40 or 8.8.8.8" style="width:240px" required><button class="btn btn-primary">Trace</button></form>
+{% if res %}
+{% for w in res.warnings %}<div class="alert alert-warning">{{ w }}</div>{% endfor %}
+{% for n in res.notes %}<div class="alert alert-info">{{ n }}</div>{% endfor %}
+{% if res.src %}<p class="small muted">From <strong>{{ src }}</strong>: {% if res.src.kind == "endpoint" %}endpoint {{ res.src.endpoint.mac_display }} on {{ res.src.device.hostname }} {{ res.src.interface }}, VLAN {{ res.src.vlan }}{% else %}address of {{ res.src.device.hostname }} {{ res.src.interface }}{% endif %}.
+{% if res.dst %}To <strong>{{ dst }}</strong>: {% if res.dst.kind == "endpoint" %}endpoint {{ res.dst.endpoint.mac_display }} on {{ res.dst.device.hostname }} {{ res.dst.interface }}, VLAN {{ res.dst.vlan }}{% else %}address of {{ res.dst.device.hostname }}{% endif %}.{% else %}{{ dst }} is not a known endpoint; the trace follows the routes towards it.{% endif %}</p>{% endif %}
+{% if res.hops %}<div class="split"><div class="card pad"><ol class="timeline" style="list-style:none">
+{% for h in res.hops %}<li class="k-{% if h.layer == 'L3' %}status{% else %}system{% endif %}"><div class="meta"><span class="tag">{{ h.layer }}</span> {{ h.note }}</div>
+<div class="txt"><a href="{% url 'inventory:detail' h.device.pk %}"><strong>{{ h.device.hostname }}</strong></a> <span class="muted small">{{ h.device.mgmt_ip }}</span>
+{% if h.in %} · in <span class="mono">{{ h.in }}</span>{% endif %}{% if h.out %} · out <span class="mono">{{ h.out }}</span>{% endif %}</div></li>{% endfor %}
+</ol>{% if res.ok %}<p class="small" style="color:var(--ok)">✓ Path complete: {{ res.hops|length }} hop{{ res.hops|length|pluralize }}.</p>{% endif %}
+<a class="btn" href="{% url 'topology:l2' %}?hl={{ ids }}">Show on the L2 map</a></div>
+<div class="card table-card"><div class="pad"><h2 class="mb0">Problems on this path</h2><p class="small muted">Open interface findings on the ports the traffic uses.</p></div><table class="tbl compact"><tbody>
+{% for dev, port, f in issues %}<tr><td>{% sev f.severity %}</td><td><a href="{% url 'inventory:detail' dev.pk %}?tab=findings">{{ dev.hostname }}</a> <span class="mono">{{ port }}</span><div class="small">{{ f.title }}</div></td></tr>{% empty %}<tr><td class="empty">None found. 👍</td></tr>{% endfor %}</tbody></table></div></div>{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}Routing tables{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Routing tables {% help 'routes' %}</h1><p>Every route collected from every layer 3 device. Look up an address to see which route each device would use for it.</p></div>
+<div class="actions">{% export_link %}<a class="btn" href="{% url 'topology:l3' %}">L3 map</a></div></div>
+<form class="filters" method="get">
+  <input name="lookup" value="{{ lookup }}" placeholder="Look up an IP, e.g. 10.20.30.40" style="width:260px">
+  <select name="device" onchange="this.form.submit()"><option value="">All devices</option>{% for d in devices %}<option value="{{ d.pk }}" {% if dev == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.hostname }}</option>{% endfor %}</select>
+  <select name="proto" onchange="this.form.submit()"><option value="">Any protocol</option>{% for p in protos %}<option value="{{ p.protocol }}" {% if proto == p.protocol %}selected{% endif %}>{{ p.protocol }} ({{ p.n }})</option>{% endfor %}</select>
+  <button class="btn">Search</button>
+</form>
+{% if matches is not None %}<div class="card table-card" style="margin-bottom:16px"><div class="pad"><h2 class="mb0">Best route to {{ lookup }}</h2><p class="muted small">Longest prefix match per device and VRF.</p></div>
+<table class="tbl"><thead><tr><th>Device</th><th>VRF</th><th>Prefix</th><th>Protocol</th><th>Next hop</th><th>Interface</th></tr></thead><tbody>
+{% for r in matches %}<tr><td><a href="{% url 'inventory:detail' r.device_id %}?tab=routes">{{ r.device.hostname }}</a></td><td>{{ r.vrf }}</td><td class="mono"><strong>{{ r.prefix }}</strong></td><td><span class="tag">{{ r.protocol }}</span> {{ r.protocol_name }}</td><td class="mono">{{ r.next_hop|default:"connected" }}</td><td class="mono">{{ r.interface }}</td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No device has a route for this address (not even a default route).</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+<div class="card table-card"><table class="tbl"><thead><tr><th>Device</th><th>VRF</th><th>Prefix</th><th>Protocol</th><th>Next hop</th><th>Interface</th><th>AD/metric</th></tr></thead><tbody>
+{% for r in page %}<tr><td><a href="{% url 'inventory:detail' r.device_id %}?tab=routes">{{ r.device.hostname }}</a></td><td class="small">{{ r.vrf }}</td><td class="mono"><strong>{{ r.prefix }}</strong></td><td><span class="tag">{{ r.protocol }}</span> <span class="small muted">{{ r.protocol_name }}</span></td><td class="mono">{{ r.next_hop|default:"connected" }}</td><td class="mono small">{{ r.interface }}</td><td class="small">{% if r.distance is not None %}{{ r.distance }}/{{ r.metric }}{% endif %}</td></tr>
+{% empty %}<tr><td colspan="7" class="empty">No routes collected yet.</td></tr>{% endfor %}</tbody></table></div>
+{% include "core/pager.html" %}
+{% endblock %}

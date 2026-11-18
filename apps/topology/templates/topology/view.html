@@ -1,0 +1,60 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}{% if kind == "l2" %}Layer 2 topology{% else %}Layer 3 topology{% endif %}{% endblock %}
+{% block mainclass %}topo-main{% endblock %}
+{% block content %}
+<div class="topo-bar">
+  <h1>{% if kind == "l2" %}Layer 2 topology{% else %}Layer 3 topology{% endif %} {% help 'topology' %}</h1>
+  <select id="topo-site" title="Site"><option value="">All sites</option>{% for s in sites %}<option value="{{ s.pk }}">{{ s.name }}</option>{% endfor %}</select>
+  <select id="topo-layout" title="Saved layout">
+    <option value="">{% if layouts %}Saved layouts…{% else %}No saved layout yet{% endif %}</option>
+    {% for l in layouts %}<option value="{{ l.pk }}" {% if layout and layout.pk == l.pk %}selected{% endif %}>{{ l.name }}</option>{% endfor %}
+  </select>
+  <span class="sep"></span>
+  <input id="topo-find" placeholder="Find device… (Enter)" style="width:170px">
+  {% if kind == "l2" %}<input id="topo-vlan" placeholder="Highlight VLAN" style="width:120px" title="Dim every link that does not carry this VLAN">{% endif %}
+  <span class="sep"></span>
+  {% if kind == "l2" %}<label class="check"><input type="checkbox" id="opt-endpoints"> Phones, APs &amp; hosts</label>{% endif %}
+  <label class="check"><input type="checkbox" id="opt-ports"> Port names</label>
+  <label class="check"><input type="checkbox" id="opt-linklabels"> {% if kind == "l2" %}Speeds{% else %}Subnets{% endif %}</label>
+  <select id="opt-group" title="Draw a box around devices that share a site, role or vendor"><option value="">No grouping</option><option value="site">Group by site</option><option value="role">Group by role</option><option value="vendor">Group by vendor</option></select>
+  <select id="opt-color" title="Colour the device boxes"><option value="">Plain</option><option value="status">Colour: status</option><option value="vendor">Colour: vendor</option><option value="security">Colour: security score</option><option value="health">Colour: interface health</option></select>
+  <span class="sep"></span>
+  <button class="btn btn-sm" id="btn-tiered" title="Arrange by tier: core on top, access below">Tiered layout</button>
+  <button class="btn btn-sm" id="btn-force" title="Spread nodes by their connections">Organic layout</button>
+  <button class="btn btn-sm" id="btn-fit">Fit</button>
+  {% if can_edit %}<button class="btn btn-sm" id="btn-saveas">Save as…</button>{% endif %}
+  <button class="btn btn-sm" id="btn-svg" title="Download the current view as SVG">Export</button>
+  <span id="topo-hidden" class="topo-hidden"></span>
+  <span id="topo-status" class="topo-status"></span>
+</div>
+<div id="topo" class="topo-wrap" data-kind="{{ kind }}" data-edit="{{ can_edit|yesno:'1,0' }}" data-csrf="{{ csrf_token }}">
+  <svg class="topo-svg"><g id="vp"><g class="g-groups"></g><g class="g-links"></g><g class="g-ports"></g><g class="g-nodes"></g><g class="g-notes"></g></g></svg>
+  <div class="topo-tip" hidden></div>
+  <div class="topo-side" hidden></div>
+  <div class="topo-menu" hidden></div>
+  <div class="topo-empty empty-state" hidden style="position:absolute;inset:0;justify-content:center">
+    <h2>Nothing to draw yet</h2>
+    <p>{% if kind == "l2" %}The layer 2 map is built from CDP and LLDP neighbours. Add devices and collect them, or run a discovery from a seed switch.{% else %}The layer 3 map is built from interface addresses and routing tables of routers and layer 3 switches.{% endif %}</p>
+    <a class="btn btn-primary" href="{% url 'inventory:discovery' %}">Start a discovery</a>
+  </div>
+  <div class="topo-legend">
+    {% if kind == "l2" %}
+    <span><svg><line x1="2" y1="5" x2="32" y2="5" class="tl tl-trunk"/></svg>Trunk (802.1Q)</span>
+    <span><svg><line x1="2" y1="5" x2="32" y2="5" class="tl tl-trunk tl-pc"/></svg>Port-channel member</span>
+    <span><svg><line x1="2" y1="5" x2="32" y2="5" class="tl tl-access"/></svg>Access port</span>
+    <span><svg><line x1="2" y1="5" x2="32" y2="5" class="tl tl-routed"/></svg>Routed port</span>
+    {% else %}
+    <span><svg><line x1="2" y1="5" x2="32" y2="5" class="tl tl-routed"/></svg>Point-to-point routed link</span>
+    <span><svg><line x1="2" y1="5" x2="32" y2="5" class="tl tl-l3member"/></svg>Member of a subnet / VLAN</span>
+    <span><svg><line x1="2" y1="5" x2="32" y2="5" class="tl tl-routed ospf"/></svg>OSPF adjacency</span>
+    {% endif %}
+    <span><svg><line x1="2" y1="5" x2="32" y2="5" class="tl tl-access tl-down"/></svg>Link down</span>
+    <span><svg><line x1="2" y1="5" x2="32" y2="5" class="tl tl-custom"/></svg>Drawn by hand</span>
+    <span><svg><circle cx="17" cy="5" r="4" class="tl-issue-mark"/></svg>Interface problem</span>
+    {% if kind == "l2" %}<span><svg><circle cx="17" cy="5" r="4" class="tp tp-blk"/></svg>Port blocked by spanning tree</span>{% endif %}
+  </div>
+  <div class="topo-zoom"><button class="btn" id="btn-zin" title="Zoom in">+</button><button class="btn" id="btn-zout" title="Zoom out">−</button></div>
+</div>
+{{ layout_json|json_script:"layout-json" }}
+{% endblock %}
+{% block scripts %}<script src="{% asset 'core/topology.js' %}"></script>{% endblock %}

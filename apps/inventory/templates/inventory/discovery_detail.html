@@ -1,0 +1,13 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}{{ run.name }}{% endblock %}
+{% block head %}{% if run.status == "running" %}<meta http-equiv="refresh" content="10">{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'inventory:discovery' %}">Discovery</a></p><h1>{{ run.name }} {% badge run.status %}</h1>
+<p>Depth {{ run.max_depth }}{% if run.include %} · only inside {{ run.include }}{% endif %} · {{ devices|length }} devices so far{% if run.status == "running" %} · this page refreshes every 10 s{% endif %}</p></div>
+<div class="actions">{% if run.status == "running" and is_operator %}<form method="post">{% csrf_token %}<button class="btn btn-danger">Stop following neighbours</button></form>{% endif %}<a class="btn" href="{% url 'topology:l2' %}">Open L2 map</a></div></div>
+<div class="split">
+<div class="card table-card"><table class="tbl"><thead><tr><th>Device</th><th>Depth</th><th>Platform</th><th>Status</th><th>Model / version</th></tr></thead><tbody>
+{% for d in devices %}<tr><td><a href="{% url 'inventory:detail' d.pk %}"><strong>{{ d.hostname }}</strong></a><div class="mono small muted">{{ d.mgmt_ip }}</div></td><td>{{ d.discovery_depth }}</td><td class="small">{{ d.driver.label }}</td><td>{% badge d.status d.get_status_display %}</td><td class="small">{{ d.model }} {{ d.os_version }}</td></tr>{% endfor %}</tbody></table></div>
+<div class="card pad"><h2>Log</h2><pre class="pre">{{ run.log|default:"Waiting for the first collection…" }}</pre></div>
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "core/base.html" %}
+{% block title %}Capacity{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Capacity {% help 'reports#capacity' %}</h1><p>How full the uplinks are (95th percentile, so short spikes do not dominate), and how many access ports are free or never used, per switch.</p></div>
+<div class="actions"><div class="seg">{% for d in "1,7,30"|split:"," %}<a href="?days={{ d }}" class="{% if days|stringformat:'s' == d %}on{% endif %}">{{ d }} day{{ d|pluralize }}</a>{% endfor %}</div></div></div>
+<div class="card table-card"><div class="pad"><h2 class="mb0">Uplinks and routed links</h2></div><table class="tbl"><thead><tr><th>Device</th><th>Port</th><th>Speed</th><th>95th percentile</th><th>Peak</th><th>Average</th><th style="width:160px">Utilisation (p95)</th><th>vs previous period</th></tr></thead><tbody>
+{% for r in uplinks %}<tr><td><a href="{% url 'inventory:detail' r.i.device_id %}">{{ r.i.device.hostname }}</a></td><td><a class="mono" href="{% url 'inventory:interface' r.i.device_id r.i.pk %}">{{ r.i.short }}</a><div class="small muted">{{ r.i.description|truncatechars:30 }}</div></td>
+<td class="small">{{ r.i.speed_mbps|default:"?" }} Mb/s</td><td><strong>{{ r.p95|bps }}</strong></td><td class="small">{{ r.peak|bps }}</td><td class="small">{{ r.avg|bps }}</td>
+<td>{% if r.util95 is not None %}<div class="mini-bar"><i class="{% if r.util95 >= 70 %}hot{% elif r.util95 >= 50 %}warm{% endif %}" style="width:{{ r.util95 }}%"></i></div><span class="small">{{ r.util95 }}%</span>{% endif %}</td>
+<td class="small">{% if r.growth is not None %}<span {% if r.growth > 20 %}style="color:var(--bad)"{% endif %}>{% if r.growth > 0 %}+{% endif %}{{ r.growth }}%</span>{% else %}<span class="muted">–</span>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="8" class="empty">No traffic data yet. It builds up from SNMP polls (or SSH polls) every few minutes.</td></tr>{% endfor %}</tbody></table></div>
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">Access ports per switch</h2><p class="small muted">"Never used" = down, and no traffic or endpoint seen on it in 30 days. Good candidates to reuse before buying another switch.</p></div><table class="tbl"><thead><tr><th>Switch</th><th>Access ports</th><th>In use</th><th style="width:160px">Usage</th><th>Free</th><th>Never used (30 d)</th><th>PoE</th></tr></thead><tbody>
+{% for p in ports %}<tr><td><a href="{% url 'inventory:detail' p.d.pk %}?tab=interfaces">{{ p.d.hostname }}</a></td><td>{{ p.total }}</td><td>{{ p.connected }}</td><td><div class="mini-bar"><i class="{% if p.pct >= 90 %}hot{% elif p.pct >= 75 %}warm{% endif %}" style="width:{{ p.pct }}%"></i></div><span class="small">{{ p.pct }}%</span></td><td>{{ p.free }}</td>
+<td title="{{ p.unused_names|join:', ' }}">{{ p.unused }}</td><td class="small">{% if p.poe_avail %}{{ p.poe_used }} / {{ p.poe_avail }} W{% else %}<span class="muted">–</span>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="7" class="empty">No access switches collected yet.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

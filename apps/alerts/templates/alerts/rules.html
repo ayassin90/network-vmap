@@ -1,0 +1,22 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}Alert rules{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'alerts:list' %}">Alerts</a></p><h1>Alert rules &amp; notifications {% help 'alerts#rules' %}</h1><p>Choose what raises an alert and where new alerts are sent.</p></div></div>
+<div class="card table-card"><table class="tbl"><thead><tr><th>Rule</th><th>Enabled</th><th>Notify</th><th>Severity</th><th>Threshold</th><th></th></tr></thead><tbody>
+{% for r in rules %}<tr><form method="post">{% csrf_token %}<input type="hidden" name="action" value="rule"><input type="hidden" name="id" value="{{ r.pk }}">
+<td><strong>{{ r.name }}</strong><div class="small muted">{{ r.description }}</div></td>
+<td><input type="checkbox" name="enabled" {% if r.enabled %}checked{% endif %}></td><td><input type="checkbox" name="notify" {% if r.notify %}checked{% endif %}></td>
+<td><select name="severity">{% for s in sevs %}<option {% if r.severity == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></td>
+<td>{% if r.params.min_severity %}<span class="small muted">at least</span> <select name="min_severity">{% for s in sevs %}<option {% if r.params.min_severity == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>{% elif r.params.target %}<span class="small muted">below</span> <input name="target" type="number" value="{{ r.params.target }}" style="width:70px">%{% endif %}</td>
+<td>{% if is_admin %}<button class="btn btn-sm">Save</button>{% endif %}</td></form></tr>{% endfor %}</tbody></table></div>
+<div class="split mt"><div class="card table-card"><div class="pad"><h2 class="mb0">Notification channels</h2></div><table class="tbl"><thead><tr><th>Name</th><th>Type</th><th>Sends</th><th>Target</th><th></th></tr></thead><tbody>
+{% for c in channels %}<tr><td><strong>{{ c.name }}</strong>{% if c.last_error %}<div class="small" style="color:var(--bad)">{{ c.last_error|truncatechars:120 }}</div>{% endif %}</td><td>{{ c.get_kind_display }}</td><td>{{ c.min_severity }} and above</td><td class="small mono">{{ c.target|truncatechars:50 }}</td>
+<td class="nowrap">{% if is_admin %}<form method="post" class="inline-form">{% csrf_token %}<input type="hidden" name="id" value="{{ c.pk }}"><button class="btn btn-sm" name="action" value="test_channel">Send test</button><button class="btn btn-sm btn-danger" name="action" value="del_channel">×</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="5" class="empty">No channels. Alerts are visible here only.</td></tr>{% endfor %}</tbody></table></div>
+{% if is_admin %}<form method="post" class="card pad form" style="max-width:none">{% csrf_token %}<input type="hidden" name="action" value="channel"><h2>Add a channel</h2>
+<label>Name<input name="name" required placeholder="NOC Teams"></label>
+<label>Type<select name="kind">{% for k,l in kinds %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+<label>Target<input name="target" required placeholder="noc@example.com, or https://hooks…"><span class="helptext">Email needs SMTP settings in the server environment (SMTP_HOST …).</span></label>
+<label>Minimum severity<select name="min_severity">{% for s in sevs %}<option {% if s == "high" %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
+<div><button class="btn btn-primary">Add channel</button></div></form>{% endif %}</div>
+{% endblock %}

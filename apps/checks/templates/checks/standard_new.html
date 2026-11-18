@@ -1,0 +1,10 @@
+{% extends "core/base.html" %}
+{% block title %}New standard{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'checks:standards' %}">Config standards</a></p><h1>New standard</h1></div></div>
+<form method="post" class="card pad form">{% csrf_token %}
+<label>Name<input name="name" required placeholder="Campus access baseline"></label>
+<label>Description<textarea name="description" rows="2" style="font-family:var(--sans)"></textarea></label>
+<label>Platforms<input name="platforms" value="cisco_ios,cisco_iosxe"><span class="helptext">Driver keys, comma separated, or * for all.</span></label>
+<div><button class="btn btn-primary">Create and add rules</button></div></form>
+{% endblock %}

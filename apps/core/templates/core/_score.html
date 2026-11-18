@@ -1,0 +1,1 @@
+{% load ui %}{% if v is None %}<span class="score score-muted">–</span>{% else %}<span class="score score-{{ v|score_tone }}">{{ v }}</span>{% endif %}

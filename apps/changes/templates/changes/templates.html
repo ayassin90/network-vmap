@@ -1,0 +1,10 @@
+{% extends "core/base.html" %}
+{% block title %}Templates{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'changes:list' %}">Changes</a></p><h1>Configuration templates {% help 'changes#templates' %}</h1><p>Reusable changes with fill-in values. A template is rendered for each device, so it can use the device's name, site and its own list of access or trunk ports.</p></div>
+<div class="actions">{% if is_admin %}<a class="btn btn-primary" href="{% url 'changes:template_new' %}">New template</a>{% endif %}</div></div>
+<div class="card table-card"><table class="tbl"><thead><tr><th>Template</th><th>Platforms</th><th>Values to fill in</th><th></th></tr></thead><tbody>
+{% for t in templates %}<tr><td><a href="{% url 'changes:template' t.pk %}"><strong>{{ t.name }}</strong></a><div class="small muted">{{ t.description|truncatechars:120 }}</div></td><td class="small">{{ t.platforms }}</td><td class="small">{% for v in t.variables %}<span class="tag">{{ v.name }}</span> {% empty %}<span class="muted">none</span>{% endfor %}</td>
+<td>{% if is_operator %}<a class="btn btn-sm btn-primary" href="{% url 'changes:new' %}?template={{ t.pk }}">Use</a>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="4" class="empty">No templates yet.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

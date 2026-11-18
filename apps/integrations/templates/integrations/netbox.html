@@ -1,0 +1,24 @@
+{% extends "core/base.html" %}
+{% block title %}NetBox{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>NetBox {% help 'netbox' %}</h1><p>Keep NetBox in step with what VMap discovers (push), or bring NetBox devices under VMap management (import).</p></div>
+<div class="actions"><a class="btn" href="{% url 'core:settings' %}">Connection settings</a></div></div>
+{% if not configured %}<div class="card"><h2>Not connected</h2><p>Add the NetBox URL and an API token in <a href="{% url 'core:settings' %}">Settings → NetBox</a>. The token needs write access to DCIM and IPAM for a push, read access for an import.</p></div>
+{% else %}
+<div class="grid grid-3">
+<div class="card pad"><h2>Push to NetBox</h2><p class="small">Creates or updates sites, manufacturers, device types, roles, platforms, devices (serial, status), their interfaces, management IPs (as primary IP) and cables between neighbours. Nothing is deleted in NetBox.</p>
+<form method="post" class="actions">{% csrf_token %}<button class="btn" name="action" value="dryrun">Dry run</button><button class="btn btn-primary" name="action" value="push" data-confirm="Push the inventory to {{ url }}?">Push now</button></form></div>
+<div class="card pad form" style="max-width:none"><h2>Import from NetBox</h2><p class="small">Active devices with a primary IP become VMap devices (existing IPs are skipped). Their NetBox platform picks the driver when it matches.</p>
+<form method="post">{% csrf_token %}<input type="hidden" name="action" value="import">
+<label>NetBox site slug (optional)<input name="site" placeholder="hq"></label><label>NetBox role slug (optional)<input name="role" placeholder="access-switch"></label>
+<label>SSH credential<select name="ssh"><option value="">–</option>{% for c in creds %}{% if c.kind == "ssh" %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endif %}{% endfor %}</select></label>
+<label>SNMP credential<select name="snmp"><option value="">–</option>{% for c in creds %}{% if c.kind != "ssh" %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endif %}{% endfor %}</select></label>
+<label>Platform when NetBox has none<select name="platform">{% for vendor, opts in platforms %}<optgroup label="{{ vendor }}">{% for k, l in opts %}<option value="{{ k }}" {% if k == "cisco_iosxe" %}selected{% endif %}>{{ l }}</option>{% endfor %}</optgroup>{% endfor %}</select></label>
+<button class="btn btn-primary">Import</button></form></div>
+<div class="card pad"><h2>Connection</h2><p class="small mono">{{ url }}</p><form method="post">{% csrf_token %}<button class="btn" name="action" value="test">Test connection</button></form></div>
+</div>
+{% endif %}
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">History</h2></div><table class="tbl"><thead><tr><th>When</th><th>Kind</th><th>Result</th><th>By</th></tr></thead><tbody>
+{% for r in runs %}<tr><td><a href="{% url 'integrations:run' r.pk %}">{{ r.started_at|date:"Y-m-d H:i" }}</a></td><td>{{ r.kind }}</td><td>{% if r.ok %}{% badge "ok" %}{% else %}{% badge "failed" %}{% endif %} <span class="small">{% for k, v in r.stats.items %}{{ k }} {{ v }}{% if not forloop.last %}, {% endif %}{% endfor %}</span></td><td>{{ r.created_by }}</td></tr>
+{% empty %}<tr><td colspan="4" class="empty">No sync yet.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

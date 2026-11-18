@@ -1,0 +1,11 @@
+{% extends "core/base.html" %}
+{% block title %}VLANs{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>VLANs {% help 'vlans' %}</h1><p>Every VLAN across the network: where it is defined, how many access ports use it, how many trunks carry it, and whether it is consistent.</p></div></div>
+{% if findings %}<div class="card table-card" style="margin-bottom:14px"><div class="pad"><h2 class="mb0">Consistency problems</h2></div><table class="tbl compact"><tbody>{% for f in findings %}<tr><td>{% sev f.severity %}</td><td><a href="{% url 'inventory:detail' f.device_id %}?tab=findings">{{ f.device.hostname }}</a></td><td><strong>{{ f.title }}</strong><div class="small muted">{{ f.detail }}</div></td></tr>{% endfor %}</tbody></table></div>{% endif %}
+<div class="card table-card"><table class="tbl"><thead><tr><th>VLAN</th><th>Name(s)</th><th>Defined on</th><th>Access ports</th><th>Trunks carrying it</th></tr></thead><tbody>
+{% for r in rows %}<tr><td><strong>{{ r.vid }}</strong></td><td>{% for n, c in r.name_list %}{{ n }}{% if r.name_list|length > 1 %} <span class="muted small">({{ c }})</span>{% endif %}{% if not forloop.last %}, {% endif %}{% empty %}<span class="badge badge-bad">not defined anywhere</span>{% endfor %}</td>
+<td>{{ r.n_devices }} device{{ r.n_devices|pluralize }}</td><td>{{ r.access }}</td><td>{{ r.trunks }}</td></tr>
+{% empty %}<tr><td colspan="5" class="empty">No VLANs collected yet.</td></tr>{% endfor %}</tbody></table></div>
+<p class="small muted mt">Use <strong>Highlight VLAN</strong> on the L2 map to see the path a VLAN takes.</p>
+{% endblock %}

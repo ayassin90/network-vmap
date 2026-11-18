@@ -1,0 +1,22 @@
+{% extends "core/base.html" %}{% load ui humanize %}
+{% block title %}Software images{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'upgrades:list' %}">Software upgrades</a></p><h1>Software images {% help 'upgrades#images' %}</h1><p>Images live on your own file server (HTTP, HTTPS, SCP, FTP or TFTP). Each switch downloads the file directly, so the URL must be reachable from the switches, not just from VMap.</p></div></div>
+<div class="split">
+<div class="card table-card"><table class="tbl"><thead><tr><th>Image</th><th>Platforms</th><th>File</th><th>MD5</th><th></th></tr></thead><tbody>
+{% for i in images %}<tr><td><strong>{{ i.name }}</strong><div>{{ i.version }}</div></td><td class="small">{{ i.platforms }}{% if i.model_match %}<br>models: {{ i.model_match }}{% endif %}</td><td class="small mono">{{ i.filename }}<div class="muted">{{ i.transfer_url_masked|truncatechars:60 }}</div>{% if i.size_bytes %}<div class="muted">{{ i.size_bytes|intcomma }} bytes</div>{% endif %}</td><td class="mono small">{{ i.md5|default:"–" }}</td>
+<td class="nowrap">{% if is_operator %}<a class="btn btn-sm btn-primary" href="{% url 'upgrades:new' %}?image={{ i.pk }}">Plan</a>{% endif %}{% if is_admin %} <form method="post" class="inline-form" data-confirm="Remove this image record?">{% csrf_token %}<input type="hidden" name="id" value="{{ i.pk }}"><button class="btn btn-sm btn-danger" name="action" value="delete">×</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="5" class="empty">No images yet.</td></tr>{% endfor %}</tbody></table></div>
+{% if is_admin %}<form method="post" class="card pad form" style="max-width:none">{% csrf_token %}<h2>Add an image</h2>
+<label>Name<input name="name" required placeholder="Catalyst 9300 17.9.5"></label>
+<label>Version<input name="version" required placeholder="17.9.5"><span class="helptext">Exactly as `show version` prints it; used to skip devices already on it and to confirm the upgrade.</span></label>
+<label>Platforms<select name="platforms" multiple size="4">{% for d in platforms %}<option value="{{ d.key }}" {% if d.key == "cisco_iosxe" %}selected{% endif %}>{{ d.label }}</option>{% endfor %}</select></label>
+<label>Model filter (optional regex)<input name="model_match" placeholder="^C9300"></label>
+<label>File name<input name="filename" required placeholder="cat9k_iosxe.17.09.05.SPA.bin"></label>
+<label>Download URL<input name="transfer_url" required placeholder="http://10.0.0.10/images/cat9k_iosxe.17.09.05.SPA.bin"></label>
+<label>MD5<input name="md5" placeholder="from software.cisco.com"><span class="helptext">Strongly recommended: the upgrade stops if the copied file does not match.</span></label>
+<label>Size in bytes (optional)<input name="size_bytes" type="number"><span class="helptext">Used to check free flash space before copying.</span></label>
+<label>Notes<textarea name="notes" rows="2" style="font-family:var(--sans)"></textarea></label>
+<div><button class="btn btn-primary">Add image</button></div></form>{% endif %}
+</div>
+{% endblock %}

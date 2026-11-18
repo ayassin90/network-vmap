@@ -1,0 +1,16 @@
+{% extends "core/base.html" %}
+{% block title %}API tokens{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>API tokens {% help 'api' %}</h1><p>Let scripts, ticketing systems and dashboards read from VMap (and, with a write token, add devices, collect and acknowledge alerts). A token acts as the administrator who created it.</p></div></div>
+{% if new %}<div class="alert alert-warning"><strong>Copy this token now. It is shown only once.</strong><code style="user-select:all">{{ new }}</code></div>{% endif %}
+<div class="split"><div class="card table-card"><table class="tbl"><thead><tr><th>Name</th><th>Access</th><th>Owner</th><th>Created</th><th>Last used</th><th></th></tr></thead><tbody>
+{% for t in tokens %}<tr><td><strong>{{ t.name }}</strong><div class="mono small muted">{{ t.prefix }}…</div></td><td>{% if t.read_only %}{% badge "info" "Read only" %}{% else %}{% badge "warn" "Read and write" %}{% endif %}</td><td>{{ t.user.username }}</td><td class="small">{{ t.created_at|date:"Y-m-d" }}</td><td class="small muted">{{ t.last_used|ago }}</td>
+<td><form method="post" data-confirm="Revoke token {{ t.name }}? Scripts using it stop working at once.">{% csrf_token %}<input type="hidden" name="id" value="{{ t.pk }}"><button class="btn btn-sm btn-danger" name="action" value="revoke">Revoke</button></form></td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No tokens yet.</td></tr>{% endfor %}</tbody></table></div>
+<div><form method="post" class="card pad form" style="max-width:none">{% csrf_token %}<h2>New token</h2><label>Name<input name="name" required placeholder="ServiceNow integration"></label>
+<label class="check"><input type="checkbox" name="write"> Allow writes (add devices, collect, acknowledge alerts)</label><div><button class="btn btn-primary">Create token</button></div></form>
+<div class="card pad mt small"><h3>Try it</h3><pre class="pre">curl -H "Authorization: Token &lt;token&gt;" {{ base }}/api/v1/devices/
+curl -H "Authorization: Token &lt;token&gt;" "{{ base }}/api/v1/endpoints/?q=10.10.20.5"
+curl -H "Authorization: Token &lt;token&gt;" "{{ base }}/api/v1/path/?src=10.10.10.25&dst=8.8.8.8"
+curl -X POST -H "Authorization: Token &lt;token&gt;" {{ base }}/api/v1/devices/12/collect/</pre><p class="muted">The full list is at <code>/api/v1/</code>.</p></div></div></div>
+{% endblock %}

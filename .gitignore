@@ -1,0 +1,24 @@
+# local environment and secrets
+.venv/
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+# runtime data
+var/
+staticfiles/
+media/
+*.sqlite3*
+# build output: release packages (hundreds of MB, rebuilt by packaging/build_release.sh)
+dist/
+build/
+*.so
+*.c
+__pycache__/
+*.pyc
+# editor / tool state
+.claude/
+.vscode/
+.idea/
+*.swp

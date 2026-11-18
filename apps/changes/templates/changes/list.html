@@ -1,0 +1,12 @@
+{% extends "core/base.html" %}
+{% block title %}Changes{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Configuration changes {% help 'changes' %}</h1><p>Every change VMap sends to a device: one-port actions, template roll-outs and rollbacks. Each device gets a rollback point first, and a failed change is rolled back automatically.</p></div>
+<div class="actions"><a class="btn" href="{% url 'changes:templates' %}">Templates</a>{% if is_operator %}<a class="btn btn-primary" href="{% url 'changes:new' %}">New change</a>{% endif %}</div></div>
+{% if pending %}<div class="alert alert-warning"><strong>{{ pending }} change{{ pending|pluralize }} waiting for approval</strong><a href="?status=pending">Review</a></div>{% endif %}
+<div class="filters"><div class="seg"><a href="?" class="{% if not status %}on{% endif %}">All</a>{% for k,l in statuses %}<a href="?status={{ k }}" class="{% if status == k %}on{% endif %}">{{ l }}</a>{% endfor %}</div></div>
+<div class="card table-card"><table class="tbl"><thead><tr><th>Change</th><th>Kind</th><th>Devices</th><th>Status</th><th>Requested</th><th>Approved</th></tr></thead><tbody>
+{% for c in changes %}<tr><td><a href="{% url 'changes:detail' c.pk %}"><strong>{{ c.number }}</strong> {{ c.title }}</a>{% if c.emergency %} <span class="badge badge-bad">emergency</span>{% endif %}</td><td>{{ c.get_kind_display }}</td><td>{{ c.targets.count }}</td><td>{% badge c.status c.get_status_display %}</td>
+<td class="small">{{ c.created_by }}<div class="muted">{{ c.created_at|ago }}</div></td><td class="small">{{ c.approved_by|default:"–" }}</td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No changes yet.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

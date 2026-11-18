@@ -1,0 +1,19 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}Alert{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'alerts:list' %}">Alerts</a></p><h1>{{ a.title }}</h1><p>{% sev a.severity %} {% badge a.status a.get_status_display %} · first seen {{ a.first_seen|date:"Y-m-d H:i" }} · last seen {{ a.last_seen|ago }} · {{ a.count }} time{{ a.count|pluralize }}</p></div>
+<div class="actions">{% if is_operator %}<form method="post" action="{% url 'alerts:bulk' %}" class="inline-form">{% csrf_token %}<input type="hidden" name="id" value="{{ a.pk }}">
+{% if a.status == "open" %}<button class="btn" name="action" value="ack">Acknowledge</button>{% endif %}{% if a.status != "resolved" %}<button class="btn" name="action" value="resolve">Resolve</button>{% else %}<button class="btn" name="action" value="reopen">Reopen</button>{% endif %}
+{% if not a.case %}<button class="btn btn-primary" name="action" value="new_case">Open a case</button>{% endif %}</form>{% endif %}</div></div>
+<div class="grid grid-2"><div class="card pad"><h2>Details</h2><p style="white-space:pre-wrap">{{ a.detail|default:"–" }}</p>
+<dl class="kv-list"><dt>Device</dt><dd>{% if a.device %}<a href="{% url 'inventory:detail' a.device_id %}">{{ a.device.hostname }}</a> ({{ a.device.mgmt_ip }}){% else %}–{% endif %}</dd>
+<dt>Rule</dt><dd>{{ a.rule.name|default:"–" }}</dd>
+{% if a.correlation %}<dt>Likely related</dt><dd style="color:var(--info)">{{ a.correlation }}</dd>{% endif %}
+{% if a.suppressed %}<dt>Suppressed</dt><dd>{{ a.suppressed_reason }}{% if a.parent %} · <a href="{% url 'alerts:detail' a.parent_id %}">root-cause alert</a>{% endif %}</dd>{% endif %}
+{% if a.reopen_count %}<dt>Came back</dt><dd>{{ a.reopen_count }} time{{ a.reopen_count|pluralize }} after clearing{% if a.flapping %} (flapping: notifications paused){% endif %}</dd>{% endif %}
+{% with kids=a.children.all %}{% if kids %}<dt>Consequences</dt><dd>{% for k in kids %}<a href="{% url 'alerts:detail' k.pk %}">{{ k.title }}</a><br>{% endfor %}</dd>{% endif %}{% endwith %}<dt>Closes by itself</dt><dd>{{ a.auto_resolve|yesno:"Yes, when the condition clears,No, resolve it by hand" }}</dd>
+{% if a.case %}<dt>Case</dt><dd><a href="{% url 'alerts:case' a.case_id %}">{{ a.case.number }} {{ a.case.title }}</a></dd>{% endif %}</dl>
+{% if a.link %}<p class="mt"><a class="btn" href="{{ a.link }}">Go to the problem →</a></p>{% endif %}</div>
+{% if not a.case and cases and is_operator %}<form method="post" action="{% url 'alerts:bulk' %}" class="card pad form" style="max-width:none">{% csrf_token %}<input type="hidden" name="id" value="{{ a.pk }}"><h2>Add to an existing case</h2>
+<select name="case">{% for c in cases %}<option value="{{ c.pk }}">{{ c.number }} {{ c.title }}</option>{% endfor %}</select><div><button class="btn" name="action" value="add_case">Add</button></div></form>{% endif %}</div>
+{% endblock %}

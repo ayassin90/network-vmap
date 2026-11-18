@@ -1,0 +1,67 @@
+# Network VMap. Start:  docker compose up -d --build     Open: http://<host>:${VMAP_PORT:-8090}
+name: network-vmap
+x-app: &app
+  build: .
+  image: network-vmap:latest
+  env_file: .env
+  environment:
+    DATABASE_URL: postgres://vmap:${POSTGRES_PASSWORD}@db:5432/vmap
+  volumes:
+    - vmap-data:/data
+  depends_on:
+    db:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: vmap
+      POSTGRES_USER: vmap
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - vmap-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vmap -d vmap"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+  web:
+    <<: *app
+    command: ["web"]
+    ports:
+      - "0.0.0.0:${VMAP_PORT:-8090}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 15s
+      retries: 10
+
+  worker:
+    <<: *app
+    command: ["worker"]
+
+  # Syslog (udp/514) and SNMP traps (udp/162) from your devices
+  receiver:
+    <<: *app
+    command: ["receiver"]
+    ports:
+      - "0.0.0.0:${VMAP_SYSLOG_PORT:-514}:5514/udp"
+      - "0.0.0.0:${VMAP_TRAP_PORT:-162}:1162/udp"
+      - "0.0.0.0:${VMAP_FLOW_PORT:-2055}:2055/udp"
+
+  # Optional: a collector agent next to the server (for testing). In production run it inside the remote network:
+  #   docker compose --profile collector up -d collector
+  collector:
+    profiles: ["collector"]
+    build: ./collector
+    image: vmap-collector:latest
+    environment:
+      VMAP_URL: http://web:8000
+      VMAP_TOKEN: ${VMAP_COLLECTOR_TOKEN:-}
+    restart: unless-stopped
+
+volumes:
+  vmap-data:
+  vmap-db:

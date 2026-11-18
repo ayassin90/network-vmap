@@ -1,0 +1,12 @@
+# A Network VMap collector on its own (install.sh --collector): runs inside a network the server cannot reach and only
+# makes outbound HTTPS requests to the server. Settings in .env: VMAP_URL, VMAP_TOKEN, VMAP_VERIFY_TLS.
+services:
+  collector:
+    image: vmap-collector:${VMAP_VERSION:?VMAP_VERSION is not set in .env}
+    env_file: .env
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    logging:
+      driver: json-file
+      options: {max-size: "20m", max-file: "5"}

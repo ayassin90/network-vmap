@@ -1,0 +1,34 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}{{ s.name }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'checks:standards' %}">Config standards</a></p><h1>{{ s.name }} {% if not s.enabled %}{% badge "cancelled" "Off" %}{% endif %}</h1><p>{{ s.description }}</p></div>
+<div class="actions">{% if is_admin %}<form method="post">{% csrf_token %}<button class="btn" name="action" value="run">Check all devices now</button></form>{% endif %}</div></div>
+<div class="split"><div>
+<div class="card table-card"><table class="tbl"><thead><tr><th>Rule</th><th>Type</th><th>Pattern</th><th>Severity</th><th>Failing</th><th></th></tr></thead><tbody>
+{% for r in rules %}<tr><td><strong>{{ r.name }}</strong>{% if r.explanation %}<div class="small muted">{{ r.explanation|truncatechars:90 }}</div>{% endif %}</td><td class="small">{{ r.get_kind_display }}{% if r.section %}<div class="mono muted">{{ r.section }}{% if r.applies_if %} ∧ {{ r.applies_if }}{% endif %}</div>{% endif %}</td><td class="mono small">{{ r.pattern }}</td><td>{% sev r.severity %}</td><td>{% if r.failing %}<span style="color:var(--bad);font-weight:600">{{ r.failing }}</span>{% else %}<span class="ok-text">0</span>{% endif %}</td>
+<td class="nowrap">{% if is_admin %}<a class="btn btn-sm" href="?edit={{ r.pk }}#ruleform">Edit</a> <form method="post" class="inline-form" data-confirm="Delete rule {{ r.name }}?">{% csrf_token %}<input type="hidden" name="id" value="{{ r.pk }}"><button class="btn btn-sm btn-danger" name="action" value="delete_rule">×</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No rules yet. Add one on the right.</td></tr>{% endfor %}</tbody></table></div>
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">Devices</h2></div><table class="tbl compact"><thead><tr><th>Device</th><th>Score</th><th>Met</th><th>Missing</th><th>Checked</th></tr></thead><tbody>
+{% for r in results %}<tr><td><a href="{% url 'checks:compliance' s.pk r.device_id %}"><strong>{{ r.device.hostname }}</strong></a></td><td>{% include "core/_score.html" with v=r.score %}</td><td>{{ r.passed }}</td><td>{{ r.failed }}</td><td class="small muted">{{ r.ran_at|ago }}</td></tr>
+{% empty %}<tr><td colspan="5" class="empty">Not evaluated yet.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+<div>{% if is_admin %}
+<form method="post" class="card pad form" id="ruleform" style="max-width:none">{% csrf_token %}<input type="hidden" name="action" value="{% if edit %}edit{% else %}add{% endif %}">{% if edit %}<input type="hidden" name="id" value="{{ edit.pk }}">{% endif %}
+<h2>{% if edit %}Edit rule{% else %}Add a rule{% endif %} {% help 'standards#rules' %}</h2>
+<label>Name<input name="name" required value="{{ edit.name }}" placeholder="SSH only on VTY lines"></label>
+<label>Type<select name="kind">{% for k,l in kinds %}<option value="{{ k }}" {% if edit.kind == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<label>Pattern (regular expression, per line)<input name="pattern" required value="{{ edit.pattern }}" class="mono" placeholder="^transport input ssh$"></label>
+<label>Section header (section rules only)<input name="section" value="{{ edit.section }}" class="mono" placeholder="^line vty"></label>
+<label>Only sections that contain<input name="applies_if" value="{{ edit.applies_if }}" class="mono" placeholder="^switchport mode access"></label>
+<label>Severity<select name="severity">{% for k,l in severities %}<option value="{{ k }}" {% if edit.severity == k or not edit and k == 'medium' %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<label>Fix (configuration to apply)<textarea name="remediation" rows="3">{{ edit.remediation }}</textarea></label>
+<label>Why (shown in reports)<textarea name="explanation" rows="2" style="font-family:var(--sans)">{{ edit.explanation }}</textarea></label>
+<div class="actions"><button class="btn btn-primary">{% if edit %}Save rule{% else %}Add rule{% endif %}</button>{% if edit %}<a class="btn" href="?">Cancel</a>{% endif %}</div></form>
+<form method="post" class="card pad form mt" style="max-width:none">{% csrf_token %}<input type="hidden" name="action" value="meta"><h2>Standard settings</h2>
+<label>Name<input name="name" value="{{ s.name }}"></label><label>Description<textarea name="description" rows="2" style="font-family:var(--sans)">{{ s.description }}</textarea></label>
+<label>Platforms<input name="platforms" value="{{ s.platforms }}"></label><label>Roles<input name="roles" value="{{ s.roles }}" placeholder="access,distribution"><span class="helptext">Empty = every role.</span></label>
+<label class="check"><input type="checkbox" name="enabled" {% if s.enabled %}checked{% endif %}> Enabled</label>
+<div class="actions"><button class="btn">Save</button><button class="btn btn-danger" name="action" value="delete" data-confirm="Delete the standard {{ s.name }} and its results?" data-confirm-danger>Delete standard</button></div></form>
+{% else %}<div class="card pad"><p class="muted">Only administrators can edit standards.</p></div>{% endif %}</div>
+</div>
+{% endblock %}

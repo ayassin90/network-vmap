@@ -1,0 +1,15 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}{{ d.label }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'inventory:platforms' %}">Platform guide</a></p><h1>{{ d.label }}</h1><p>{{ d.models }}</p></div></div>
+<div class="split"><div>
+<div class="card pad"><h2>Status</h2><p>{{ d.notes }}</p>{% if d.upgrade_notes %}<h3 class="mt">Software upgrades</h3><p>{{ d.upgrade_notes }}</p>{% endif %}
+<p class="small muted">SSH driver: <code>{{ d.netmiko_type }}</code>{% if d.os_type %} · PSIRT type: <code>{{ d.os_type }}</code>{% endif %}</p></div>
+<div class="card table-card mt"><table class="tbl"><thead><tr><th>Function</th><th>Level</th><th>What it means</th></tr></thead><tbody>
+{% for f in feats %}<tr><td><strong>{{ f.label }}</strong></td><td><span class="badge badge-{{ f.lv.1 }}"><i class="dotmark"></i>{{ f.lv.0 }}</span></td><td class="small">{{ f.desc }}</td></tr>{% endfor %}</tbody></table></div>
+{% if commands %}<div class="card pad mt"><h2>Commands VMap runs</h2><p class="small muted">All read-only. The account needs privilege 15 (or an enable secret) for <code>show running-config</code>.</p><pre class="pre">{% for c in commands %}{{ c.cmd }}
+{% endfor %}</pre></div>{% endif %}
+</div>
+<div class="card table-card"><div class="pad"><h2 class="mb0">Devices on this platform</h2></div><table class="tbl compact"><tbody>{% for x in devices %}<tr><td><a href="{% url 'inventory:detail' x.pk %}">{{ x.hostname }}</a></td><td class="small">{{ x.os_version }}</td></tr>{% empty %}<tr><td class="empty">None.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+{% endblock %}

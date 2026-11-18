@@ -1,0 +1,30 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}Security & best practices{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Security &amp; best practices {% help 'findings' %}</h1><p>Problems found in device configurations, grouped by check. Each one says why it matters and gives configuration that fixes it.</p></div>
+<div class="actions">{% export_link %}{% if is_operator %}<form method="post" action="{% url 'checks:rerun' %}">{% csrf_token %}<button class="btn" title="Re-evaluate every check on the data already collected">Re-run checks</button></form>{% endif %}</div></div>
+<div class="grid grid-4" style="grid-template-columns:repeat(5,1fr)">{% for s, n in stats.items %}<a class="card stat" href="?sev={{ s }}&cat={{ cat }}"><span class="n {% if n and s == 'critical' or n and s == 'high' %}bad{% elif n and s == 'medium' %}warn{% endif %}">{{ n }}</span><span class="l">{{ s|capfirst }}</span></a>{% endfor %}</div>
+<div class="filters mt">
+  <div class="seg"><a href="?view=by_check&cat={{ cat }}" class="{% if view == 'by_check' %}on{% endif %}">By check</a><a href="?view=list&cat={{ cat }}" class="{% if view == 'list' %}on{% endif %}">By device</a></div>
+  <div class="seg"><a href="?view={{ view }}" class="{% if not cat %}on{% endif %}">Security + practice</a><a href="?view={{ view }}&cat=security" class="{% if cat == 'security' %}on{% endif %}">Security</a><a href="?view={{ view }}&cat=best_practice" class="{% if cat == 'best_practice' %}on{% endif %}">Best practice</a><a href="?view={{ view }}&cat=compliance" class="{% if cat == 'compliance' %}on{% endif %}">Standards</a><a href="?view={{ view }}&cat=interface" class="{% if cat == 'interface' %}on{% endif %}">Interfaces</a></div>
+  <form method="get" class="inline-form"><input type="hidden" name="view" value="{{ view }}"><input type="hidden" name="cat" value="{{ cat }}"><input name="q" value="{{ q }}" placeholder="Search"><select name="site" onchange="this.form.submit()"><option value="">All sites</option>{% for s in sites %}<option value="{{ s.pk }}" {% if request.GET.site == s.pk|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>{% endfor %}</select><select name="status" onchange="this.form.submit()"><option value="open">Open</option><option value="accepted" {% if request.GET.status == "accepted" %}selected{% endif %}>Accepted risk</option><option value="resolved" {% if request.GET.status == "resolved" %}selected{% endif %}>Resolved</option></select></form>
+</div>
+{% if view == "by_check" %}
+<div class="stack-sm">{% for g in groups %}
+<details class="card find-group s-{{ g.severity }}">
+  <summary>{% sev g.severity %}<span class="t">{{ g.title }}</span><span class="tag">{{ g.check_id }}</span><span class="badge badge-muted">{{ g.n_devices }} device{{ g.n_devices|pluralize }}</span></summary>
+  <div class="body find-cols">
+    <div><p style="white-space:pre-line">{{ g.recommendation }}</p>
+      <table class="tbl compact"><tbody>{% for f in g.items|slice:":60" %}<tr><td><a href="{% url 'inventory:detail' f.device_id %}?tab=findings">{{ f.device.hostname }}</a></td><td class="small muted">{{ f.detail|truncatechars:120 }}</td></tr>{% endfor %}</tbody></table>
+      {% if g.items|length > 60 %}<p class="muted small">… and {{ g.items|length|add:"-60" }} more.</p>{% endif %}</div>
+    <div>{% if g.remediation %}<p class="small muted" style="margin:0 0 4px">Suggested configuration</p><pre class="pre">{{ g.remediation }}</pre>{% endif %}</div>
+  </div>
+</details>{% empty %}<div class="card empty-state"><h2>Nothing open here</h2><p>Either everything passes or nothing has been collected yet.</p></div>{% endfor %}</div>
+{% else %}
+<div class="card table-card"><table class="tbl"><thead><tr><th>Severity</th><th>Device</th><th>Finding</th><th>Detail</th><th>Since</th></tr></thead><tbody>
+{% for f in page %}<tr><td>{% sev f.severity %}</td><td><a href="{% url 'inventory:detail' f.device_id %}?tab=findings">{{ f.device.hostname }}</a></td><td><strong>{{ f.title }}</strong><div class="small muted">{{ f.get_category_display }}</div></td><td class="small">{{ f.detail|truncatechars:140 }}</td><td class="small muted">{{ f.first_seen|ago }}</td></tr>
+{% empty %}<tr><td colspan="5" class="empty">Nothing here.</td></tr>{% endfor %}</tbody></table></div>{% include "core/pager.html" %}
+{% endif %}
+<details class="card pad mt"><summary><strong>All built-in checks ({{ rules|length }})</strong> <span class="muted small">— what VMap looks for</span></summary>
+<table class="tbl compact mt"><thead><tr><th>ID</th><th>Severity</th><th>Check</th><th>Why it matters</th></tr></thead><tbody>{% for r in rules %}<tr><td class="mono small">{{ r.id }}</td><td>{% sev r.severity %}</td><td><strong>{{ r.title }}</strong><div class="small muted">{{ r.families|join:", " }}{% if r.switch_only %} · switches only{% endif %}</div></td><td class="small">{{ r.why }}</td></tr>{% endfor %}</tbody></table></details>
+{% endblock %}

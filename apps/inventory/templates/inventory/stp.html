@@ -1,0 +1,15 @@
+{% extends "core/base.html" %}
+{% block title %}Spanning tree{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Spanning tree {% help 'stp' %}</h1><p>Which switch is root for each VLAN, which ports are blocking, and where topology changes come from. The root should be a core or distribution switch you chose on purpose.</p></div>
+<div class="actions"><a class="btn" href="{% url 'topology:l2' %}">Open L2 map</a></div></div>
+{% if findings %}<div class="card table-card" style="margin-bottom:14px"><table class="tbl compact"><tbody>{% for f in findings %}<tr><td>{% sev f.severity %}</td><td><a href="{% url 'inventory:detail' f.device_id %}?tab=stp">{{ f.device.hostname }}</a></td><td><strong>{{ f.title }}</strong><div class="small muted">{{ f.detail }}</div></td></tr>{% endfor %}</tbody></table></div>{% endif %}
+<div class="split"><div class="card table-card"><table class="tbl"><thead><tr><th>VLAN</th><th>Root bridge</th><th>Switches</th><th>Blocked ports</th><th>Most topology changes</th></tr></thead><tbody>
+{% for r in rows %}<tr><td><a href="?vlan={{ r.vlan }}"><strong>{{ r.vlan }}</strong></a></td>
+<td>{% for x in r.root_list %}{% if x.device %}<a href="{% url 'inventory:detail' x.device.pk %}?tab=stp"><strong>{{ x.device.hostname }}</strong></a>{% if x.device.role == "access" %} <span class="badge badge-bad">access switch</span>{% endif %}{% else %}<span class="mono">{{ x.mac }}</span>{% endif %} <span class="small muted">prio {{ x.prio }}</span>{% if not forloop.last %}<br><span class="badge badge-warn">more than one root</span><br>{% endif %}{% endfor %}</td>
+<td>{{ r.devices|length }}</td><td>{{ r.blocked }}</td><td class="small">{% if r.tc_dev %}{{ r.tc_max }} on {{ r.tc_dev.device.hostname }}{% if r.tc_dev.tc_from %} from <span class="mono">{{ r.tc_dev.tc_from }}</span>{% endif %} <span class="muted">({{ r.tc_dev.tc_ago }} ago)</span>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="5" class="empty">No spanning-tree data yet. It is read on every SSH collection (Cisco).</td></tr>{% endfor %}</tbody></table></div>
+<div class="card table-card">{% if detail %}<div class="pad"><h2 class="mb0">VLAN {{ detail.vlan }}</h2></div><table class="tbl compact"><thead><tr><th>Switch</th><th>Root port</th><th>Blocking</th></tr></thead><tbody>
+{% for s in detail.devices %}<tr><td><a href="{% url 'inventory:detail' s.device_id %}?tab=stp">{{ s.device.hostname }}</a>{% if s.is_root %} <span class="badge badge-ok">root</span>{% endif %}</td><td class="mono small">{{ s.root_port|default:"–" }} {% if s.root_cost %}<span class="muted">cost {{ s.root_cost }}</span>{% endif %}</td><td class="mono small">{{ s.blocked|join:", "|default:"–" }}</td></tr>{% endfor %}</tbody></table>
+{% else %}<div class="pad muted">Pick a VLAN to see every switch's root port and blocking ports.</div>{% endif %}</div></div>
+{% endblock %}

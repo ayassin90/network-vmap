@@ -1,0 +1,20 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}Platform guide{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Platform guide {% help 'platforms' %}</h1><p>What VMap can do on each switch and router family today. Cisco is fully supported; other vendors already get topology, interface health and throughput through standard SNMP, and their SSH drivers are being added one by one.</p></div></div>
+<div class="legend-row" style="margin-bottom:12px">{% for k, v in levels.items %}<span><i class="fdot fdot-{{ k }}"></i>{{ v.0 }}</span>{% endfor %}</div>
+<div class="card table-card"><table class="tbl feat-grid">
+<thead><tr><th>Platform</th><th>Status</th>{% for k, l, x in features %}<th class="rot" title="{{ x }}"><div>{{ l }}</div></th>{% endfor %}<th>In use</th></tr></thead>
+<tbody>{% for r in rows %}<tr>
+<td><a href="{% url 'inventory:platform' r.d.key %}"><strong>{{ r.d.label }}</strong></a><div class="small muted">{{ r.d.models|truncatechars:70 }}</div></td>
+<td>{% if r.d.status == "supported" %}{% badge "ok" "Supported" %}{% elif r.d.status == "beta" %}{% badge "beta" "Beta" %}{% elif r.d.status == "snmp" %}{% badge "snmp" "SNMP today" %}{% else %}{% badge "planned" %}{% endif %}</td>
+{% for lv in r.levels %}<td class="fc" title="{{ lv.0 }}"><i class="fdot fdot-{{ lv.2 }}"></i></td>{% endfor %}
+<td class="right">{% if r.n %}{{ r.n }}{% else %}<span class="muted">–</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+<div class="card pad mt small"><h3>Reading the table</h3>
+<ul style="padding-left:18px;margin:0" class="stack-sm">
+<li><strong>Supported</strong>: built and tested for this platform.</li>
+<li><strong>Via SNMP</strong>: works through the standard MIBs (IF-MIB, LLDP-MIB, IP-MIB). Results depend on what the vendor implements; add an SNMP credential to the device.</li>
+<li><strong>Manual</strong>: the vendor does not offer a reliable remote way (for example web-UI-only firmware). VMap tracks the version and PSIRT exposure, but you upgrade by hand.</li>
+<li><strong>Planned</strong>: on the roadmap. Tell us which vendor you need next and it moves up the list.</li>
+</ul></div>
+{% endblock %}

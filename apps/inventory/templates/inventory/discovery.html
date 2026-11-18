@@ -1,0 +1,14 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}Discovery{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Discovery {% help 'discovery' %}</h1><p>Give VMap one or more seed switches. It logs in, reads their CDP and LLDP neighbours, adds every neighbouring switch and router, and repeats until it reaches the depth you set.</p></div></div>
+<div class="split">
+<form method="post" class="card pad form" style="max-width:none">{% csrf_token %}
+  {% include "core/_form.html" %}
+  <div><button class="btn btn-primary" {% if not is_operator %}disabled{% endif %}>Start discovery</button></div>
+</form>
+<div class="card table-card"><div class="pad"><h2 class="mb0">Previous runs</h2></div><table class="tbl compact"><tbody>
+{% for r in runs %}<tr><td><a href="{% url 'inventory:discovery_detail' r.pk %}"><strong>{{ r.name }}</strong></a><div class="small muted">{{ r.created_at|ago }} by {{ r.created_by }}</div></td><td>{% badge r.status %}</td><td class="right">{{ r.n }} devices</td></tr>
+{% empty %}<tr><td class="empty">No discovery has run yet.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+{% endblock %}

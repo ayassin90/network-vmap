@@ -1,0 +1,17 @@
+{% extends "core/base.html" %}{% block title %}Users{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Users</h1><p>Who can sign in, and what they may do. Viewers read, operators run jobs and work alerts and cases, administrators change settings.</p></div></div>
+<div class="grid grid-2" style="align-items:start">
+<div class="card table-card"><table class="tbl"><thead><tr><th>User</th><th>Role</th><th>Last sign-in</th><th></th></tr></thead><tbody>
+{% for u in users %}<tr><td><strong>{{ u.username }}</strong><div class="muted small">{{ u.email }}</div></td>
+<td>{% if u == request.user %}{{ u.get_role_display }}{% else %}<form method="post" class="inline-form">{% csrf_token %}<input type="hidden" name="action" value="role"><input type="hidden" name="id" value="{{ u.pk }}"><select name="role" onchange="this.form.submit()">{% for k,l in roles %}<option value="{{ k }}" {% if u.role == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></form>{% endif %}</td>
+<td class="muted">{{ u.last_login|ago }}</td>
+<td>{% if u != request.user %}<form method="post" data-confirm="Delete user {{ u.username }}?">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="{{ u.pk }}"><button class="btn btn-sm btn-danger">Delete</button></form>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+<div class="card pad"><h2>Add a user</h2><form method="post" class="form">{% csrf_token %}<input type="hidden" name="action" value="create">
+<label>Username<input name="username" required></label><label>Email<input name="email" type="email"></label>
+<label>Password<input name="password" type="password" required minlength="8"></label>
+<label>Role<select name="role">{% for k,l in roles %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+<div><button class="btn btn-primary">Create user</button></div></form></div>
+</div>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}Alerts{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Alerts {% help 'alerts' %}</h1><p>Raised automatically from collections and polls. An alert closes by itself when the problem goes away; acknowledge it to show someone is on it, or group alerts into a case.</p></div>
+<div class="actions">{% export_link %}<a class="btn" href="{% url 'alerts:maintenance' %}">Maintenance windows</a><a class="btn" href="{% url 'alerts:rules' %}">Rules &amp; notifications</a></div></div>
+<div class="grid grid-4" style="grid-template-columns:repeat(5,1fr)">{% for s, n in stats.items %}<a class="card stat" href="?sev={{ s }}"><span class="n {% if n and s == 'critical' or n and s == 'high' %}bad{% elif n and s == 'medium' %}warn{% endif %}">{{ n }}</span><span class="l">{{ s|capfirst }} open</span></a>{% endfor %}</div>
+<div class="filters mt"><div class="seg">{% for k, l in "active:Active,open:Open,acknowledged:Acknowledged,resolved:Resolved"|split_pairs %}<a href="?status={{ k }}" class="{% if status == k %}on{% endif %}">{{ l }}</a>{% endfor %}</div>
+<form method="get" class="inline-form"><input type="hidden" name="status" value="{{ status }}"><input name="q" value="{{ q }}" placeholder="Search alert or device"></form>
+{% if n_sup %}<a class="small" href="?status={{ status }}{% if not show_sup %}&suppressed=1{% endif %}">{% if show_sup %}Hide{% else %}Show{% endif %} {{ n_sup }} suppressed (consequences of another outage, or muted by maintenance)</a>{% endif %}</div>
+<form method="post" action="{% url 'alerts:bulk' %}">{% csrf_token %}
+{% if is_operator %}<div class="filters"><span class="muted small">With selected:</span>
+<button class="btn btn-sm" name="action" value="ack">Acknowledge</button><button class="btn btn-sm" name="action" value="resolve">Resolve</button>
+<button class="btn btn-sm btn-primary" name="action" value="new_case">Open a case</button>
+{% if cases %}<select name="case" style="height:26px">{% for c in cases %}<option value="{{ c.pk }}">{{ c.number }} {{ c.title|truncatechars:40 }}</option>{% endfor %}</select><button class="btn btn-sm" name="action" value="add_case">Add to case</button>{% endif %}</div>{% endif %}
+<div class="card table-card"><table class="tbl"><thead><tr><th style="width:28px"><input type="checkbox" data-check-all="ids"></th><th>Severity</th><th>Alert</th><th>Device</th><th>Status</th><th>Seen</th><th>Case</th></tr></thead><tbody>
+{% for a in page %}<tr><td><input type="checkbox" name="ids" value="{{ a.pk }}"></td><td>{% sev a.severity %}</td>
+<td><a href="{% url 'alerts:detail' a.pk %}"><strong>{{ a.title }}</strong></a>{% if a.flapping %} <span class="badge badge-warn">flapping</span>{% endif %}{% if a.suppressed %} <span class="badge badge-muted">suppressed</span>{% endif %}
+<div class="small muted">{{ a.detail|truncatechars:120 }}</div>{% if a.suppressed_reason %}<div class="small muted">↳ {{ a.suppressed_reason }}</div>{% endif %}{% if a.correlation %}<div class="small" style="color:var(--info)">⟲ {{ a.correlation }}</div>{% endif %}{% if a.children.count %}<div class="small">Root cause of {{ a.children.count }} other alert{{ a.children.count|pluralize }}</div>{% endif %}</td>
+<td>{% if a.device %}<a href="{% url 'inventory:detail' a.device_id %}">{{ a.device.hostname }}</a>{% endif %}</td>
+<td>{% badge a.status a.get_status_display %}{% if a.acknowledged_by %}<div class="small muted">by {{ a.acknowledged_by }}</div>{% endif %}</td>
+<td class="small">{{ a.first_seen|ago }}{% if a.count > 1 %}<div class="muted">{{ a.count }}× · last {{ a.last_seen|ago }}</div>{% endif %}</td>
+<td>{% if a.case %}<a href="{% url 'alerts:case' a.case_id %}">{{ a.case.number }}</a>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="7" class="empty">No alerts here.</td></tr>{% endfor %}</tbody></table></div></form>
+{% include "core/pager.html" %}
+{% endblock %}

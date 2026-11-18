@@ -1,0 +1,66 @@
+{% extends "core/base.html" %}{% load ui humanize %}
+{% block title %}{{ d.hostname }} {{ i.short }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'inventory:list' %}">Devices</a> / <a href="{% url 'inventory:detail' d.pk %}?tab=interfaces">{{ d.hostname }}</a></p>
+<h1>{{ i.name }} <span class="mode-pill mode-{{ i.mode }}">{{ i.mode }}</span> {% if i.oper_up %}{% badge "up" %}{% else %}{% badge i.status|default:"down" %}{% endif %}</h1><p>{{ i.description|default:"No description" }}</p></div></div>
+<div class="grid grid-3">
+<div class="card pad"><h2>Port</h2><dl class="kv-list">
+<dt>Speed / duplex</dt><dd>{{ i.speed|default:"–" }} / {{ i.duplex|default:"–" }}</dd><dt>Media</dt><dd>{{ i.media|default:"–" }}</dd><dt>MTU</dt><dd>{{ i.mtu|default:"–" }}</dd>
+{% if i.mode == "access" %}<dt>VLAN</dt><dd>{{ i.access_vlan }}{% if i.voice_vlan %} (voice {{ i.voice_vlan }}){% endif %}</dd>{% endif %}
+{% if i.mode == "trunk" %}<dt>Native VLAN</dt><dd>{{ i.native_vlan }}</dd><dt>Allowed</dt><dd class="small">{{ i.trunk_vlans|default:"all" }}</dd>{% endif %}
+{% if i.ip %}<dt>IP</dt><dd>{{ i.ip }}</dd>{% endif %}{% if i.port_channel %}<dt>Port-channel</dt><dd>{{ i.port_channel }}</dd>{% endif %}
+<dt>MAC</dt><dd class="mono">{{ i.mac|default:"–" }}</dd><dt>Last input</dt><dd>{{ i.last_input|default:"–" }}</dd>
+{% if nbr %}<dt>Neighbour</dt><dd>{% if nbr.remote_device_id %}<a href="{% url 'inventory:detail' nbr.remote_device_id %}">{{ nbr.remote_name }}</a>{% else %}{{ nbr.remote_name }}{% endif %} {{ nbr.remote_port }}<div class="small muted">{{ nbr.remote_platform }}</div></dd>{% endif %}
+</dl></div>
+<div class="card pad"><h2>Counters</h2><dl class="kv-list">
+<dt>Input errors</dt><dd>{{ i.in_errors|intcomma }}</dd><dt>CRC</dt><dd>{{ i.crc|intcomma }}</dd><dt>Runts / giants</dt><dd>{{ i.runts|intcomma }} / {{ i.giants|intcomma }}</dd>
+<dt>Frame / overrun</dt><dd>{{ i.frame|intcomma }} / {{ i.overrun|intcomma }}</dd><dt>Output errors</dt><dd>{{ i.out_errors|intcomma }}</dd>
+<dt>Collisions</dt><dd>{{ i.collisions|intcomma }} (late {{ i.late_collisions|intcomma }})</dd><dt>Input discards</dt><dd>{{ i.in_discards|intcomma }}</dd><dt>Output drops</dt><dd>{{ i.out_drops|intcomma }}</dd>
+<dt>New errors</dt><dd>{{ i.err_delta|intcomma }} since last poll</dd></dl></div>
+<div class="card pad"><h2>Now</h2><dl class="kv-list"><dt>In</dt><dd>{{ i.in_rate_bps|bps }}</dd><dt>Out</dt><dd>{{ i.out_rate_bps|bps }}</dd><dt>Utilisation</dt><dd>{{ i.utilization|default_if_none:"–" }}{% if i.utilization is not None %}%{% endif %}</dd><dt>Updated</dt><dd>{{ i.updated_at|ago }}</dd></dl>
+{% for f in findings %}<p style="color:var(--bad)">⚠ <strong>{{ f.title }}</strong><br><span class="small">{{ f.detail }}</span></p>{% endfor %}</div>
+</div>
+<div class="grid grid-2 mt">
+<div class="card pad"><h2>Change this port {% help 'changes#port' %}</h2>
+{% if not can_change %}<p class="muted">Port changes are not available for this platform yet (see the platform guide).</p>
+{% elif not is_operator %}<p class="muted">Operators can change ports.</p>
+{% else %}<form method="post" action="{% url 'changes:port' i.pk %}" class="form" style="max-width:none" data-confirm="Send this change to {{ d.hostname }} {{ i.short }}? A rollback point is saved first.">{% csrf_token %}
+<div class="row-gap">{% if i.admin_up %}<button class="btn" name="action" value="shutdown">Shut down</button><button class="btn" name="action" value="bounce">Bounce</button>{% else %}<button class="btn btn-primary" name="action" value="no_shutdown">Enable</button>{% endif %}
+{% if i.poe_oper == "on" or i.poe_oper == "faulty" or i.poe_admin == "off" %}<button class="btn" name="action" value="poe_cycle">Cycle PoE</button>{% if i.poe_admin == "off" %}<button class="btn" name="action" value="poe_on">PoE on</button>{% else %}<button class="btn" name="action" value="poe_off">PoE off</button>{% endif %}{% endif %}</div>
+{% if i.mode == "access" %}<div class="row-gap"><select name="vlan_pick" onchange="this.form.value.value=this.value">{% for v in vlan_choices %}<option value="{{ v.vid }}" {% if v.vid|stringformat:"s" == i.access_vlan %}selected{% endif %}>{{ v.vid }} {{ v.name }}</option>{% endfor %}</select>
+<button class="btn" name="action" value="access_vlan" onclick="this.form.value.value=this.form.vlan_pick.value">Set access VLAN</button></div>{% endif %}
+<div class="row-gap"><input name="desc" value="{{ i.description }}" placeholder="Description" style="flex:1"><button class="btn" name="action" value="description" onclick="this.form.value.value=this.form.desc.value">Set description</button></div>
+<input type="hidden" name="value" value="">
+<input name="reason" placeholder="Why (goes into the audit log)">
+<label class="check"><input type="checkbox" name="save" checked> Save the configuration afterwards (write memory)</label>
+{% if is_admin %}<label class="check"><input type="checkbox" name="emergency"> Emergency: run even during a change freeze</label>{% endif %}
+</form>{% endif %}
+{% for c in recent_changes %}<p class="small"><a href="{% url 'changes:detail' c.change_id %}">{{ c.change.number }}</a> {{ c.change.title }} {% badge c.status c.get_status_display %} <span class="muted">{{ c.change.created_at|ago }}</span></p>{% endfor %}
+</div>
+<div class="card pad"><h2>On this port</h2>
+{% for e in endpoints %}<p><a class="mono" href="{% url 'inventory:endpoint' e.pk %}">{{ e.mac_display }}</a> {{ e.ip }} {{ e.name|default:e.vendor }} <span class="muted small">VLAN {{ e.vlan }} · {{ e.last_seen|ago }}</span></p>{% empty %}<p class="muted">No endpoint learned on this port.</p>{% endfor %}
+{% if i.poe_oper == "on" or i.poe_oper == "faulty" or i.poe_admin == "off" %}<p class="small">PoE: {{ i.poe_oper|default:"–" }} · {{ i.poe_watts|default_if_none:"0" }} W · {{ i.poe_device }} {% if i.poe_class %}class {{ i.poe_class }}{% endif %}</p>{% endif %}
+{% if optic %}<p class="small">Optic {{ optic.pid }} <span class="mono">{{ optic.serial }}</span>: rx {{ optic.rx }} dBm, tx {{ optic.tx }} dBm, {{ optic.temp }} °C {% if optic.health == "alarm" %}{% badge "bad" "Alarm" %}{% elif optic.health == "warning" %}{% badge "warn" "Warning" %}{% endif %}</p>{% endif %}
+<p class="small">Link changes in the last 24 h: <strong {% if flaps >= 3 %}style="color:var(--bad)"{% endif %}>{{ flaps }}</strong></p>
+</div></div>
+<div class="card pad mt"><h2>Throughput and errors {% help 'interfaces#throughput' %}</h2>
+<svg id="chart" class="chart"></svg><div class="legend-row"><span><i class="lg" style="background:var(--trunk)"></i>In</span><span><i class="lg" style="background:var(--routed)"></i>Out</span><span><i class="lg" style="background:var(--bad)"></i>New errors</span></div></div>
+{{ samples_json|json_script:"samples" }}
+{% endblock %}
+{% block scripts %}<script>
+(function(){
+  var pts=JSON.parse(JSON.parse(document.getElementById('samples').textContent)), svg=document.getElementById('chart'), NS='http://www.w3.org/2000/svg';
+  if(!pts.length){svg.outerHTML='<p class="muted">No samples yet. They appear after a few polls (every 5 minutes with SNMP, or each SSH poll).</p>';return;}
+  var W=svg.clientWidth||900,H=220,P=46,max=Math.max.apply(null,pts.map(function(p){return Math.max(p.i,p.o)}))||1, emax=Math.max.apply(null,pts.map(function(p){return p.e}))||1;
+  var t0=new Date(pts[0].t).getTime(),t1=new Date(pts[pts.length-1].t).getTime()||t0+1; if(t1===t0)t1=t0+1;
+  function X(t){return P+(new Date(t).getTime()-t0)/(t1-t0)*(W-P-10)} function Y(v){return H-22-(v/max)*(H-40)}
+  function el(n,a){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);svg.appendChild(e);return e}
+  function fmt(v){var u=['b/s','Kb/s','Mb/s','Gb/s'],i=0;while(v>=1000&&i<3){v/=1000;i++}return v.toFixed(i?1:0)+' '+u[i]}
+  svg.setAttribute('viewBox','0 0 '+W+' '+H);
+  for(var g=0;g<=4;g++){var y=Y(max*g/4);el('line',{x1:P,x2:W-10,y1:y,y2:y,'class':'ax'});var t=el('text',{x:P-6,y:y+3,'text-anchor':'end'});t.textContent=fmt(max*g/4);}
+  var din='M'+X(pts[0].t)+' '+Y(0); pts.forEach(function(p){din+=' L'+X(p.t)+' '+Y(p.i)}); din+=' L'+X(pts[pts.length-1].t)+' '+Y(0)+'Z';
+  el('path',{d:din,'class':'in'}); var dout=''; pts.forEach(function(p,i){dout+=(i?' L':'M')+X(p.t)+' '+Y(p.o)}); el('path',{d:dout,'class':'out'});
+  pts.forEach(function(p){if(p.e>0){var h=Math.max(3,p.e/emax*30);el('rect',{x:X(p.t)-1.5,y:H-22-h,width:3,height:h,'class':'err'})}});
+  [pts[0],pts[Math.floor(pts.length/2)],pts[pts.length-1]].forEach(function(p,i){var t=el('text',{x:X(p.t),y:H-6,'text-anchor':['start','middle','end'][i]});t.textContent=new Date(p.t).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})});
+})();
+</script>{% endblock %}

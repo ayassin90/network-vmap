@@ -1,0 +1,23 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}{{ c.number }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'alerts:cases' %}">Cases</a></p><h1>{{ c.number }} · {{ c.title }}</h1><p>{% badge c.status c.get_status_display %} {{ c.get_priority_display }} · opened {{ c.created_at|date:"Y-m-d H:i" }} by {{ c.created_by }}{% if c.assignee %} · owner {{ c.assignee.username }}{% endif %}{% if c.ticket_ref %} · ticket {% if c.ticket_url %}<a href="{{ c.ticket_url }}" target="_blank" rel="noopener">{{ c.ticket_ref }}</a>{% else %}{{ c.ticket_ref }}{% endif %}{% endif %}</p></div>
+{% if is_operator and not c.ticket_ref and ticketing %}<div class="actions"><form method="post">{% csrf_token %}<button class="btn" name="action" value="ticket">Open external ticket</button></form></div>{% endif %}</div>
+<div class="split"><div>
+{% if c.description %}<div class="card pad"><p style="white-space:pre-wrap;margin:0">{{ c.description }}</p></div>{% endif %}
+<div class="card pad mt"><h2>Timeline</h2><ul class="timeline">{% for n in notes %}<li class="k-{{ n.kind }}"><div class="meta"><strong>{{ n.author }}</strong> · {{ n.created_at|date:"Y-m-d H:i" }}</div><div class="txt">{{ n.text }}</div></li>{% endfor %}</ul>
+{% if is_operator %}<form method="post" class="form" style="max-width:none">{% csrf_token %}<input type="hidden" name="action" value="note"><textarea name="text" rows="3" style="font-family:var(--sans)" placeholder="What did you find or change?"></textarea><div><button class="btn btn-primary">Add note</button></div></form>{% endif %}</div>
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">Linked alerts</h2></div><table class="tbl compact"><tbody>{% for a in alerts %}<tr><td>{% sev a.severity %}</td><td><a href="{% url 'alerts:detail' a.pk %}">{{ a.title }}</a></td><td>{% badge a.status a.get_status_display %}</td><td>{% if is_operator %}<form method="post" class="inline-form">{% csrf_token %}<input type="hidden" name="action" value="unlink"><input type="hidden" name="alert" value="{{ a.pk }}"><button class="btn btn-sm">Unlink</button></form>{% endif %}</td></tr>{% empty %}<tr><td class="empty">No alerts linked. Link them from the Alerts page.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+<div>{% if is_operator %}<form method="post" class="card pad form" style="max-width:none">{% csrf_token %}<input type="hidden" name="action" value="update"><h2>Update</h2>
+<label>Status<select name="status">{% for k,l in statuses %}<option value="{{ k }}" {% if c.status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<label>Priority<select name="priority">{% for k,l in priorities %}<option value="{{ k }}" {% if c.priority == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<label>Assignee<select name="assignee"><option value="">Nobody</option>{% for u in users %}<option value="{{ u.pk }}" {% if c.assignee_id == u.pk %}selected{% endif %}>{{ u.username }}</option>{% endfor %}</select></label>
+<label>Due<input type="date" name="due" value="{{ c.due|date:'Y-m-d' }}"></label>
+<label class="check"><input type="checkbox" name="resolve_alerts"> When resolving, also resolve linked alerts</label>
+<div><button class="btn btn-primary">Save</button></div></form>
+<form method="post" class="card pad form mt" style="max-width:none">{% csrf_token %}<input type="hidden" name="action" value="devices"><h2>Devices</h2>
+<select name="devices" multiple size="8">{% for d in all_devices %}<option value="{{ d.pk }}" {% if d in c.devices.all %}selected{% endif %}>{{ d.hostname }}</option>{% endfor %}</select><div><button class="btn">Save devices</button></div></form>
+{% else %}<div class="card pad"><h2>Devices</h2>{% for d in c.devices.all %}<p><a href="{% url 'inventory:detail' d.pk %}">{{ d.hostname }}</a></p>{% endfor %}</div>{% endif %}</div>
+</div>
+{% endblock %}

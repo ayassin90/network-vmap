@@ -1,0 +1,19 @@
+{% extends "core/base.html" %}
+{% block title %}Event rules{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'events:list' %}">Event log</a></p><h1>Event rules {% help 'events#rules' %}</h1><p>The first matching rule decides what happens to a syslog message or trap: raise an alert, collect the device straight away (to catch a configuration change), count it as a link flap, or just keep it in the log.</p></div></div>
+<div class="card table-card"><table class="tbl"><thead><tr><th>Order</th><th>Rule</th><th>Pattern</th><th>Levels</th><th>Action</th><th>Alert as</th><th>On</th><th>24 h</th><th></th></tr></thead><tbody>
+{% for r in rules %}<tr><form method="post">{% csrf_token %}<input type="hidden" name="id" value="{{ r.pk }}">
+<td><input name="order" value="{{ r.order }}" style="width:56px"></td><td><input name="name" value="{{ r.name }}" style="min-width:180px"><div class="small muted">{{ r.explanation|truncatechars:110 }}</div></td>
+<td><input name="pattern" value="{{ r.pattern }}" class="mono" style="min-width:240px"></td>
+<td><select name="max_severity">{% for k,l in sevs %}<option value="{{ k }}" {% if r.max_severity == k %}selected{% endif %}>≤ {{ k }} {{ l }}</option>{% endfor %}</select></td>
+<td><select name="action_kind">{% for k,l in actions %}<option value="{{ k }}" {% if r.action == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></td>
+<td><select name="alert_severity">{% for s in "critical,high,medium,low,info"|split:"," %}<option {% if r.alert_severity == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></td>
+<td><input type="checkbox" name="enabled" {% if r.enabled %}checked{% endif %}></td><td>{{ r.hits }}</td>
+<td class="nowrap">{% if is_admin %}<button class="btn btn-sm">Save</button> <button class="btn btn-sm btn-danger" name="action" value="delete">×</button>{% endif %}</td></form></tr>{% endfor %}
+{% if is_admin %}<tr><form method="post">{% csrf_token %}<td><input name="order" value="500" style="width:56px"></td><td><input name="name" placeholder="New rule" required></td><td><input name="pattern" class="mono" placeholder="%OSPF-5-ADJCHG" required></td>
+<td><select name="max_severity">{% for k,l in sevs %}<option value="{{ k }}" {% if k == 7 %}selected{% endif %}>≤ {{ k }} {{ l }}</option>{% endfor %}</select></td>
+<td><select name="action_kind">{% for k,l in actions %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></td><td><select name="alert_severity"><option>high</option><option selected>medium</option><option>low</option><option>info</option></select></td>
+<td><input type="checkbox" name="enabled" checked></td><td></td><td><button class="btn btn-sm btn-primary">Add</button></td></form></tr>{% endif %}
+</tbody></table></div>
+{% endblock %}

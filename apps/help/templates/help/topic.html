@@ -1,0 +1,6 @@
+{% extends "core/base.html" %}
+{% block title %}Help: {{ t.title }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="small"><a href="{% url 'help:index' %}">Help</a> / {{ t.group }}</p><h1>{{ t.title }}</h1></div></div>
+<div class="card help-page">{% include "help/_body.html" %}</div>
+{% endblock %}

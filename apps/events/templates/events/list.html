@@ -1,0 +1,25 @@
+{% extends "core/base.html" %}
+{% block title %}Event log{% endblock %}
+{% block head %}{% if auto %}<meta http-equiv="refresh" content="10">{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Event log {% help 'events' %}</h1><p>Syslog messages and SNMP traps sent by your devices. Point devices at this server: syslog to UDP 514, traps to UDP 162. {{ n24 }} event{{ n24|pluralize }} in the last 24 hours.</p></div>
+<div class="actions"><a class="btn" href="{% url 'events:rules' %}">Rules</a>{% if auto %}<a class="btn" href="?{% for k,v in request.GET.items %}{% if k != 'live' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}">Stop live</a>{% else %}<a class="btn btn-primary" href="?{% for k,v in request.GET.items %}{{ k }}={{ v|urlencode }}&{% endfor %}live=1">Live (refresh every 10 s)</a>{% endif %}</div></div>
+<form class="filters" method="get"><input name="q" value="{{ request.GET.q }}" placeholder="Text, mnemonic (e.g. LINK-3-UPDOWN) or source IP">
+<select name="device" onchange="this.form.submit()"><option value="">All devices</option>{% for d in devices %}<option value="{{ d.pk }}" {% if request.GET.device == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.hostname }}</option>{% endfor %}</select>
+<select name="sev" onchange="this.form.submit()"><option value="">Any level</option>{% for k,l in sevs %}<option value="{{ k }}" {% if request.GET.sev == k|stringformat:"s" %}selected{% endif %}>{{ k }} {{ l }} or worse</option>{% endfor %}</select>
+<select name="kind" onchange="this.form.submit()"><option value="">Syslog and traps</option><option value="syslog" {% if request.GET.kind == "syslog" %}selected{% endif %}>Syslog</option><option value="trap" {% if request.GET.kind == "trap" %}selected{% endif %}>Traps</option></select>
+<label class="check"><input type="checkbox" name="matched" value="1" {% if request.GET.matched %}checked{% endif %} onchange="this.form.submit()"> Only messages a rule acted on</label>
+{% if auto %}<input type="hidden" name="live" value="1">{% endif %}</form>
+<div class="split"><div class="card table-card"><table class="tbl compact"><thead><tr><th style="width:150px">Time</th><th>Device</th><th>Level</th><th>Message</th></tr></thead><tbody>
+{% for e in page %}<tr><td class="small muted nowrap">{{ e.ts|date:"m-d H:i:s" }}</td><td class="small">{% if e.device %}<a href="{% url 'inventory:detail' e.device_id %}">{{ e.device.hostname }}</a>{% else %}<span class="mono muted">{{ e.source }}</span>{% endif %}</td>
+<td><span class="sev sev-{% if e.severity <= 2 %}critical{% elif e.severity == 3 %}high{% elif e.severity == 4 %}medium{% else %}low{% endif %}">{{ e.get_severity_display }}</span></td>
+<td class="small"><span class="mono">{{ e.message|truncatechars:240 }}</span>{% if e.rule %}<div class="muted">↳ {{ e.rule.name }} · {{ e.rule.get_action_display|lower }}</div>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="4" class="empty">No events yet. Configure devices with <code>logging host &lt;this server&gt;</code> and <code>snmp-server host &lt;this server&gt; traps &lt;community&gt;</code>.</td></tr>{% endfor %}</tbody></table></div>
+<div><div class="card table-card"><div class="pad"><h2 class="mb0">Most frequent (24 h)</h2></div><table class="tbl compact"><tbody>{% for t in top %}<tr><td class="mono small"><a href="?q={{ t.mnemonic|urlencode }}">{{ t.mnemonic }}</a></td><td class="right">{{ t.n }}</td></tr>{% empty %}<tr><td class="empty">Nothing yet.</td></tr>{% endfor %}</tbody></table></div>
+{% if unknown %}<div class="card table-card mt"><div class="pad"><h2 class="mb0">From unknown sources</h2><p class="small muted">Senders that are not a managed device (add them, or check their source interface).</p></div><table class="tbl compact"><tbody>{% for u in unknown %}<tr><td class="mono small"><a href="?q={{ u.source }}">{{ u.source }}</a></td><td class="right">{{ u.n }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+<div class="card pad mt small"><h3>Device configuration</h3><pre class="pre">logging host &lt;vmap-ip&gt;
+logging trap informational
+snmp-server host &lt;vmap-ip&gt; version 2c &lt;community&gt;
+snmp-server enable traps snmp linkdown linkup coldstart</pre></div></div></div>
+{% include "core/pager.html" %}
+{% endblock %}

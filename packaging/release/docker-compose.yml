@@ -1,0 +1,65 @@
+# Network VMap: the installed stack (compiled release). install.sh writes .env next to this file; day to day:
+#   docker compose ps | logs -f web | restart | pull nothing: the images were loaded from the release package.
+# With HTTPS (the default), docker-compose.https.yml adds nginx in front and web listens on 127.0.0.1 only.
+x-app: &app
+  image: network-vmap:${VMAP_VERSION:?VMAP_VERSION is not set in .env}
+  env_file: .env
+  environment:
+    DATABASE_URL: postgres://vmap:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/vmap
+  volumes:
+    - vmap-data:/data
+  depends_on:
+    db:
+      condition: service_healthy
+  restart: unless-stopped
+  # unprivileged user (uid 10001), no Linux capabilities, no way to gain any
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  logging: &logging
+    driver: json-file
+    options: {max-size: "20m", max-file: "5"}
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: vmap
+      POSTGRES_USER: vmap
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - vmap-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vmap -d vmap"]
+      interval: 5s
+      retries: 30
+    restart: unless-stopped
+    logging: *logging
+
+  web:
+    <<: *app
+    command: ["web"]
+    ports:
+      - "${VMAP_WEB_BIND:-0.0.0.0}:${VMAP_PORT:-8090}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      start_period: 60s
+      retries: 10
+
+  worker:
+    <<: *app
+    command: ["worker"]
+
+  # syslog (udp 514), SNMP traps (udp 162) and NetFlow/IPFIX (udp 2055) from your devices
+  receiver:
+    <<: *app
+    command: ["receiver"]
+    ports:
+      - "${VMAP_SYSLOG_PORT:-514}:5514/udp"
+      - "${VMAP_TRAP_PORT:-162}:1162/udp"
+      - "${VMAP_FLOW_PORT:-2055}:2055/udp"
+
+volumes:
+  vmap-data:
+  vmap-db:

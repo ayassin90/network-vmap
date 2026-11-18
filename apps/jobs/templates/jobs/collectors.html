@@ -1,0 +1,14 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}Collectors{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Collectors {% help 'collectors' %}</h1><p>A collector is a small agent you run inside a network that this server cannot reach directly, for example when VMap is hosted in the cloud. It connects out over HTTPS, takes jobs for its devices, runs SSH and SNMP locally and sends the results back. No inbound firewall rule is needed.</p></div></div>
+<div class="split"><div class="card table-card"><table class="tbl"><thead><tr><th>Collector</th><th>State</th><th>Agent</th><th>Devices</th><th></th></tr></thead><tbody>
+{% for c in collectors %}<tr><td><a href="{% url 'jobs:collector' c.pk %}"><strong>{{ c.name }}</strong></a><div class="small muted">{{ c.description }}</div></td>
+<td>{% if not c.enabled %}{% badge "cancelled" "Disabled" %}{% elif c.online %}{% badge "online" "Online" %}{% else %}{% badge "offline" "Offline" %}{% endif %}<div class="small muted">seen {{ c.last_seen|ago }}</div></td>
+<td class="small">{{ c.agent_host|default:"–" }}<div class="muted">{{ c.agent_version }} {{ c.last_ip }}</div></td><td>{{ c.devices.count }}</td>
+<td>{% if is_admin %}<form method="post" class="inline-form" data-confirm="Delete collector {{ c.name }}? Its devices fall back to this server.">{% csrf_token %}<input type="hidden" name="id" value="{{ c.pk }}"><button class="btn btn-sm btn-danger" name="action" value="delete">Delete</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="5" class="empty">No collectors. Devices are reached directly from this server.</td></tr>{% endfor %}</tbody></table></div>
+{% if is_admin %}<form method="post" class="card pad form" style="max-width:none">{% csrf_token %}<input type="hidden" name="action" value="create"><h2>Add a collector</h2>
+<label>Name<input name="name" required placeholder="dubai-dc1"></label><label>Description<input name="description" placeholder="Rack A3, mgmt VLAN 10"></label>
+<div><button class="btn btn-primary">Create and show token</button></div></form>{% endif %}</div>
+{% endblock %}

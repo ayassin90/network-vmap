@@ -1,0 +1,7 @@
+{% extends "core/base.html" %}
+{% block title %}NetBox {{ r.kind }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'integrations:netbox' %}">NetBox</a></p><h1>NetBox {{ r.kind }} · {{ r.started_at|date:"Y-m-d H:i" }}</h1>
+<p>{% if r.ok %}{% badge "ok" %}{% else %}{% badge "failed" %}{% endif %} {% for k, v in r.stats.items %}{{ k }} {{ v }}{% if not forloop.last %} · {% endif %}{% endfor %} · by {{ r.created_by|default:"schedule" }}</p></div></div>
+<div class="card"><pre class="code small">{{ r.log|default:"(no log)" }}</pre></div>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "core/base.html" %}{% load ui humanize %}
+{% block title %}Interfaces{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Interfaces {% help 'interfaces' %}</h1><p>Errors, duplex and speed problems, err-disabled ports and throughput across the whole network.</p></div><div class="actions">{% export_link %}</div></div>
+<div class="grid grid-4" style="grid-template-columns:repeat(5,1fr)">
+  <a class="card stat" href="?f=issues"><span class="n {% if stats.issues %}warn{% endif %}">{{ stats.issues }}</span><span class="l">Ports with a problem</span></a>
+  <a class="card stat" href="?f=half"><span class="n {% if stats.half %}bad{% endif %}">{{ stats.half }}</span><span class="l">Half duplex</span></a>
+  <a class="card stat" href="?f=issues"><span class="n {% if stats.mismatch %}bad{% endif %}">{{ stats.mismatch }}</span><span class="l">Speed / duplex / trunk mismatches</span></a>
+  <a class="card stat" href="?f=errors"><span class="n {% if stats.crc %}warn{% endif %}">{{ stats.crc }}</span><span class="l">Ports with CRC errors</span></a>
+  <a class="card stat" href="?f=errdis"><span class="n {% if stats.errdis %}bad{% endif %}">{{ stats.errdis }}</span><span class="l">Err-disabled</span></a>
+</div>
+<div class="filters mt">
+  <div class="seg">{% for k, l in "issues:Problems,errors:Errors,half:Half duplex,errdis:Err-disabled,util:Busy (≥50%),top:Top talkers,trunks:Trunks,all:All"|split_pairs %}<a href="?f={{ k }}" class="{% if f == k %}on{% endif %}">{{ l }}</a>{% endfor %}</div>
+  <form method="get" class="inline-form"><input type="hidden" name="f" value="{{ f }}"><input name="q" value="{{ q }}" placeholder="Device, port or description"></form>
+</div>
+<div class="card table-card"><table class="tbl">
+<thead><tr><th>Device</th><th>Port</th><th>Description</th><th>Mode</th><th>Speed / duplex</th><th>In / out</th><th>Util</th><th>CRC</th><th>In / out err</th><th>Drops</th><th>Problem</th></tr></thead>
+<tbody>{% for i in page %}<tr>
+<td><a href="{% url 'inventory:detail' i.device_id %}?tab=interfaces">{{ i.device.hostname }}</a></td>
+<td><a href="{% url 'inventory:interface' i.device_id i.pk %}" class="mono"><strong>{{ i.short }}</strong></a>{% if not i.oper_up %} <span class="muted small">down</span>{% endif %}</td>
+<td class="small">{{ i.description|truncatechars:40 }}</td><td><span class="mode-pill mode-{{ i.mode }}">{{ i.mode }}</span></td>
+<td class="small" {% if i.half_duplex %}style="color:var(--bad);font-weight:600"{% endif %}>{{ i.speed }} / {{ i.duplex }}</td>
+<td class="small">{{ i.in_rate_bps|bps }}<br>{{ i.out_rate_bps|bps }}</td>
+<td>{% if i.utilization is not None %}<div class="mini-bar"><i class="{% if i.utilization >= 80 %}hot{% elif i.utilization >= 50 %}warm{% endif %}" style="width:{{ i.utilization }}%"></i></div><span class="small muted">{{ i.utilization }}%</span>{% endif %}</td>
+<td {% if i.crc %}style="color:var(--bad);font-weight:600"{% endif %}>{{ i.crc|intcomma }}</td><td class="small">{{ i.in_errors|intcomma }} / {{ i.out_errors|intcomma }}</td><td class="small">{{ i.out_drops|intcomma }}</td>
+<td class="small">{% for f in i.issues %}<div>{% sev f.severity %} {{ f.title }}</div>{% endfor %}</td></tr>
+{% empty %}<tr><td colspan="11" class="empty">{% if f == "issues" %}No interface problems right now. 🎉{% else %}Nothing matches.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% include "core/pager.html" %}
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "core/base.html" %}
+{% block title %}Find endpoint{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Find an endpoint {% help 'endpoints' %}</h1><p>Where is this device plugged in? Search by MAC (any format), IP address, name, switch or port. VMap reads the MAC and ARP tables of every switch and keeps the edge port each endpoint was last seen on, with its history.</p></div><div class="actions">{% export_link %}</div></div>
+<form class="filters" method="get"><input name="q" value="{{ q }}" placeholder="00:50:56:aa:bb:cc, 0050.56aa.bbcc, 10.10.10.25, SEP00A3…, ACC-2 Gi1/0/12" autofocus style="max-width:520px">
+<select name="kind" onchange="this.form.submit()"><option value="">Any kind</option><option value="host" {% if kind == 'host' %}selected{% endif %}>Hosts</option><option value="phone" {% if kind == 'phone' %}selected{% endif %}>IP phones</option><option value="ap" {% if kind == 'ap' %}selected{% endif %}>Access points</option></select><button class="btn btn-primary">Find</button></form>
+{% if hits is not None %}
+<div class="card table-card" style="margin-bottom:16px"><div class="pad"><h2 class="mb0">{{ hits|length }} match{{ hits|length|pluralize:"es" }} for “{{ q }}”</h2></div>
+<table class="tbl"><thead><tr><th>MAC</th><th>IP</th><th>Name / vendor</th><th>Switch</th><th>Port</th><th>VLAN</th><th>Last seen</th><th>Moves</th></tr></thead><tbody>
+{% for e in hits %}<tr><td class="mono"><a href="{% url 'inventory:endpoint' e.pk %}"><strong>{{ e.mac_display }}</strong></a></td><td class="mono">{{ e.ip }}</td><td>{{ e.name|default:e.vendor }}</td>
+<td>{% if e.device %}<a href="{% url 'inventory:detail' e.device_id %}?tab=endpoints">{{ e.device.hostname }}</a>{% endif %}</td><td class="mono"><strong>{{ e.interface }}</strong></td><td>{{ e.vlan }}</td><td class="small muted">{{ e.last_seen|ago }}</td><td>{{ e.moves }}</td></tr>
+{% empty %}<tr><td colspan="8" class="empty">Not found on any access port. It may be behind a router, on a switch VMap does not manage, or not seen since the last MAC scan.</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+<div class="grid grid-4" style="grid-template-columns:repeat(5,1fr)">
+<div class="card stat"><span class="n">{{ stats.total }}</span><span class="l">Endpoints on access ports</span></div>
+<div class="card stat"><span class="n">{{ stats.today }}</span><span class="l">First seen in the last 24 h</span></div>
+<div class="card stat"><span class="n">{{ stats.moved }}</span><span class="l">Have moved at least once</span></div>
+<a class="card stat" href="?kind=phone"><span class="n">{{ stats.phones }}</span><span class="l">IP phones</span></a>
+<a class="card stat" href="?kind=ap"><span class="n">{{ stats.aps }}</span><span class="l">Access points</span></a></div>
+<div class="split mt">
+<div class="card table-card"><table class="tbl"><thead><tr><th>MAC</th><th>IP</th><th>Name / vendor</th><th>Where</th><th>VLAN</th><th>Seen</th></tr></thead><tbody>
+{% for e in page %}<tr><td class="mono"><a href="{% url 'inventory:endpoint' e.pk %}">{{ e.mac_display }}</a></td><td class="mono small">{{ e.ip }}</td><td class="small">{{ e.name|default:e.vendor }}{% if e.kind and e.kind != 'host' %} <span class="tag">{{ e.kind }}</span>{% endif %}</td>
+<td class="small">{% if e.device %}{{ e.device.hostname }} <span class="mono">{{ e.interface }}</span>{% endif %}</td><td>{{ e.vlan }}</td><td class="small muted">{{ e.last_seen|ago }}</td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No endpoints yet. They appear after the next collection or MAC scan.</td></tr>{% endfor %}</tbody></table></div>
+<div class="card table-card"><div class="pad"><h2 class="mb0">Recent activity</h2></div><table class="tbl compact"><tbody>
+{% for ev in events %}<tr><td class="small"><a class="mono" href="{% url 'inventory:endpoint' ev.endpoint_id %}">{{ ev.endpoint.mac_display }}</a> {% if ev.kind == "new" %}appeared on <strong>{{ ev.to_where }}</strong>{% elif ev.kind == "moved" %}moved <span class="muted">{{ ev.from_where }}</span> → <strong>{{ ev.to_where }}</strong>{% else %}IP {{ ev.from_where }} → {{ ev.to_where }}{% endif %}<div class="muted">{{ ev.at|ago }}</div></td></tr>
+{% empty %}<tr><td class="empty">Nothing yet.</td></tr>{% endfor %}</tbody></table></div></div>
+{% include "core/pager.html" %}
+{% endblock %}

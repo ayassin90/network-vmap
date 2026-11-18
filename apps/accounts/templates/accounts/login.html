@@ -1,0 +1,61 @@
+{% load static ui %}<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign in · Network VMap</title>
+<link rel="icon" href="{% static 'core/favicon.svg' %}" type="image/svg+xml">
+<link rel="stylesheet" href="{% asset 'core/app.css' %}">
+<link rel="stylesheet" href="{% asset 'core/vmap.css' %}">
+<script src="{% asset 'core/theme.js' %}"></script>
+</head><body class="lg-body">
+<div class="lg-split">
+  <section class="lg-art" aria-hidden="true">
+    <div class="lg-art-brand">{% include "core/_logo.html" %}<span class="wm"><span class="wm-name">Network<span>VMap</span></span><span class="wm-sub">Switch &amp; router visibility</span></span></div>
+    <svg class="lg-net" viewBox="0 0 600 460" preserveAspectRatio="xMidYMid meet">
+      <g class="lg-links">
+        <path d="M300 70 L170 190"/><path d="M300 70 L430 190"/><path d="M170 190 L430 190" class="lg-l3"/>
+        <path d="M170 190 L80 330"/><path d="M170 190 L220 330"/><path d="M430 190 L380 330"/><path d="M430 190 L520 330"/>
+        <path d="M430 190 L220 330" class="lg-acc"/><path d="M170 190 L380 330" class="lg-acc"/>
+        <path d="M80 330 L50 410" class="lg-acc"/><path d="M80 330 L110 410" class="lg-acc"/><path d="M220 330 L200 410" class="lg-acc"/>
+        <path d="M380 330 L400 410" class="lg-acc"/><path d="M520 330 L490 410" class="lg-acc"/><path d="M520 330 L555 410" class="lg-acc"/>
+      </g>
+      <g class="lg-pulses">
+        <circle r="3.2"><animateMotion dur="3.2s" repeatCount="indefinite" path="M300 70 L170 190 L80 330"/></circle>
+        <circle r="3.2"><animateMotion dur="2.6s" repeatCount="indefinite" path="M520 330 L430 190 L300 70"/></circle>
+        <circle r="3.2"><animateMotion dur="4s" repeatCount="indefinite" path="M220 330 L170 190 L430 190 L380 330"/></circle>
+        <circle r="3.2" class="warn"><animateMotion dur="3.6s" repeatCount="indefinite" path="M110 410 L80 330 L170 190"/></circle>
+      </g>
+      <g class="lg-nodes">
+        <rect x="270" y="56" width="60" height="28" rx="6" class="core"/>
+        <rect x="140" y="176" width="60" height="28" rx="6"/><rect x="400" y="176" width="60" height="28" rx="6"/>
+        <rect x="56" y="318" width="48" height="24" rx="5"/><rect x="196" y="318" width="48" height="24" rx="5"/>
+        <rect x="356" y="318" width="48" height="24" rx="5"/><rect x="496" y="318" width="48" height="24" rx="5" class="alert"/>
+        <circle cx="50" cy="410" r="6"/><circle cx="110" cy="410" r="6"/><circle cx="200" cy="410" r="6"/>
+        <circle cx="400" cy="410" r="6"/><circle cx="490" cy="410" r="6"/><circle cx="555" cy="410" r="6"/>
+      </g>
+    </svg>
+    <ul class="lg-points">
+      <li><b>Discover</b> CDP and LLDP neighbours into live layer 2 and layer 3 maps.</li>
+      <li><b>Assure</b> security practice, config standards, interface health and PSIRT exposure.</li>
+      <li><b>Act</b> on alerts and cases, and roll out software in waves.</li>
+    </ul>
+  </section>
+  <section class="lg-form-side">
+    {% include "core/_theme_pick.html" with extra_class="lg-theme" %}
+    <div class="lg-form-wrap">
+      <h1>Welcome back</h1>
+      <p class="muted">Sign in to your Network VMap workspace.</p>
+      <form method="post" class="form lg-form">
+        {% csrf_token %}
+        {% if error %}<div class="alert alert-bad">{{ error }}</div>{% endif %}
+        <label>Username<input name="username" autofocus autocomplete="username" required></label>
+        <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+        <input type="hidden" name="next" value="{{ next }}">
+        <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+      </form>
+      {% if oidc %}<div class="lg-or"><span>or</span></div>
+      <a class="btn btn-block" href="{% url 'accounts:oidc_login' %}?next={{ next|urlencode }}">{{ oidc.label }}</a>{% endif %}
+      <p class="muted small">{% if ldap %}Use your directory (Active Directory / LDAP) username and password.{% else %}Local accounts.{% endif %} Ask an administrator if you need access.</p>
+    </div>
+  </section>
+</div>
+</body></html>

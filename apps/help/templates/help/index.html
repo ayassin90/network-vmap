@@ -1,0 +1,15 @@
+{% extends "core/base.html" %}
+{% block title %}Help{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Help</h1>
+  <p>Plain-English help for every page. Press <kbd>?</kbd> on any page, or a <span class="help-q help-q-inline">?</span> next to a control, to open its help in the panel on the right.</p></div></div>
+<form class="filters" method="get"><input name="q" value="{{ q }}" placeholder="Search help, e.g. trunk, half duplex, collector…" autofocus></form>
+{% for group, items in groups.items %}
+<h2 class="help-group">{{ group }}</h2>
+<div class="help-grid">
+  {% for i in items %}<a class="card help-card" href="{% url 'help:topic' i.topic.slug %}"><strong>{{ i.topic.title }}</strong>
+    <span class="muted small">{{ i.topic.sections|length }} item{{ i.topic.sections|length|pluralize }}</span>
+    {% if i.hits %}<span class="small">{% for s in i.hits|slice:":6" %}<span class="tag">{{ s.label }}</span> {% endfor %}</span>{% endif %}</a>{% endfor %}
+</div>
+{% empty %}<p class="muted">Nothing matches "{{ q }}".</p>{% endfor %}
+{% endblock %}

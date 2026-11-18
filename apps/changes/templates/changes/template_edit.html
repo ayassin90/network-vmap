@@ -1,0 +1,22 @@
+{% extends "core/base.html" %}
+{% block title %}{% if t %}{{ t.name }}{% else %}New template{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'changes:templates' %}">Templates</a></p><h1>{% if t %}{{ t.name }}{% else %}New template{% endif %}</h1></div></div>
+<div class="split"><form method="post" class="card pad form" style="max-width:none">{% csrf_token %}
+<label>Name<input name="name" required value="{% firstof form.name t.name '' %}"></label>
+<label>Description<input name="description" value="{% firstof form.description t.description '' %}"></label>
+<label>Platforms<input name="platforms" value="{% firstof form.platforms t.platforms 'cisco_ios,cisco_iosxe' %}"></label>
+<label>Configuration<textarea name="body" rows="14">{% firstof form.body t.body '' %}</textarea></label>
+<label>Values to fill in (JSON)<textarea name="variables" rows="5">{% firstof form.variables vars_json %}</textarea></label>
+<div class="actions">{% if is_admin %}<button class="btn btn-primary">Save template</button>{% if t %}<button class="btn btn-danger" name="action" value="delete" data-confirm="Delete template {{ t.name }}?">Delete</button>{% endif %}{% endif %}</div></form>
+<div class="card pad small"><h3>Writing templates</h3>
+<p>Lines are sent in configuration mode. Indent interface sub-commands with one space, as in the running config.</p>
+<p><strong>Values</strong> you list in the JSON box are asked for when the template is used: <code>[{"name": "syslog", "label": "Syslog server"}]</code>, then write <code>{% templatetag openvariable %} vars.syslog {% templatetag closevariable %}</code>.</p>
+<p><strong>Device facts</strong>: <code>{% templatetag openvariable %} device.hostname {% templatetag closevariable %}</code>, <code>device.site.name</code>, <code>device.mgmt_ip</code>, <code>device.model</code>.</p>
+<p><strong>Ports</strong>: loop over <code>interfaces.access</code>, <code>interfaces.trunk</code>, <code>interfaces.unused</code> or <code>interfaces.all</code>:</p>
+<pre class="pre">{% templatetag openblock %} for i in interfaces.access {% templatetag closeblock %}
+interface {% templatetag openvariable %} i.name {% templatetag closevariable %}
+ spanning-tree bpduguard enable
+{% templatetag openblock %} endfor {% templatetag closeblock %}</pre>
+<p>Use <strong>Preview</strong> on the change page to see the exact result for each device before anything is sent.</p></div></div>
+{% endblock %}

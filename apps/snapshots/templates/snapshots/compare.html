@@ -1,0 +1,36 @@
+{% extends "core/base.html" %}
+{% block title %}Compare snapshots{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>What changed {% help 'snapshots#compare' %}</h1><p>Differences between two moments: devices, software and configuration, ports, links, routes, endpoints and findings.</p></div></div>
+<form class="card filters"><label>From <select name="a">{% for s in snaps %}<option value="{{ s.pk }}" {% if s.pk|stringformat:'s' == a_id %}selected{% endif %}>{{ s.taken_at|date:"Y-m-d H:i" }}{% if s.label %} · {{ s.label }}{% endif %}</option>{% endfor %}</select></label>
+<label>To <select name="b"><option value="now">Now (live)</option>{% for s in snaps %}<option value="{{ s.pk }}" {% if s.pk|stringformat:'s' == b_id %}selected{% endif %}>{{ s.taken_at|date:"Y-m-d H:i" }}{% if s.label %} · {{ s.label }}{% endif %}</option>{% endfor %}</select></label>
+<button class="btn btn-primary">Compare</button></form>
+{% if not snaps %}<div class="card empty">Take a snapshot first (Snapshots → Take snapshot now).</div>{% endif %}
+{% if d %}
+<p class="mt"><strong>{{ d.total }}</strong> change{{ d.total|pluralize }} from {{ a.taken_at|date:"Y-m-d H:i" }} to {{ b_label }}.{% if not d.total %} Nothing changed.{% endif %}</p>
+{% if d.devices_added or d.devices_removed or d.device_changes %}<div class="card table-card mt"><div class="pad"><h2 class="mb0">Devices</h2></div><table class="tbl"><thead><tr><th>Device</th><th>What</th><th>Before</th><th>After</th></tr></thead><tbody>
+{% for h in d.devices_added %}<tr><td>{{ h }}</td><td colspan="3">{% badge "new" %} added to the network</td></tr>{% endfor %}
+{% for h in d.devices_removed %}<tr><td>{{ h }}</td><td colspan="3">{% badge "bad" %} no longer in the inventory</td></tr>{% endfor %}
+{% for c in d.device_changes %}<tr><td>{{ c.device }}</td><td>{{ c.what }}</td><td class="mono small">{{ c.before|default_if_none:"–" }}</td><td class="mono small">{{ c.after|default_if_none:"–" }}</td></tr>{% endfor %}
+</tbody></table></div>{% endif %}
+{% if d.links_added or d.links_removed %}<div class="card table-card mt"><div class="pad"><h2 class="mb0">Links</h2></div><table class="tbl"><tbody>
+{% for l in d.links_added %}<tr><td>{% badge "added" %}</td><td>{{ l.0.0 }} <span class="mono small">{{ l.0.1 }}</span> ↔ {{ l.1.0 }} <span class="mono small">{{ l.1.1 }}</span></td></tr>{% endfor %}
+{% for l in d.links_removed %}<tr><td>{% badge "removed" %}</td><td>{{ l.0.0 }} <span class="mono small">{{ l.0.1 }}</span> ↔ {{ l.1.0 }} <span class="mono small">{{ l.1.1 }}</span></td></tr>{% endfor %}
+</tbody></table></div>{% endif %}
+{% if d.port_changes %}<div class="card table-card mt"><div class="pad"><h2 class="mb0">Ports ({{ d.port_changes|length }})</h2></div><table class="tbl"><thead><tr><th>Device</th><th>Port</th><th>What</th><th>Before</th><th>After</th></tr></thead><tbody>
+{% for c in d.port_changes|slice:":500" %}<tr><td>{{ c.device }}</td><td class="mono">{{ c.port }}</td><td>{{ c.what }}</td><td class="small mono">{{ c.before }}</td><td class="small mono">{{ c.after }}</td></tr>{% endfor %}
+</tbody></table></div>{% endif %}
+{% if d.routes %}<div class="card table-card mt"><div class="pad"><h2 class="mb0">Routes ({{ d.routes|length }})</h2></div><table class="tbl"><thead><tr><th>Device</th><th></th><th>VRF</th><th>Prefix</th><th>Protocol</th><th>Via</th></tr></thead><tbody>
+{% for r in d.routes|slice:":500" %}<tr><td>{{ r.device }}</td><td>{% badge r.change %}</td><td class="small">{{ r.route.0 }}</td><td class="mono">{{ r.route.1 }}</td><td>{{ r.route.2 }}</td><td class="mono small">{{ r.route.3 }}</td></tr>{% endfor %}
+</tbody></table></div>{% endif %}
+{% if d.endpoints_new or d.endpoints_gone or d.endpoints_moved %}<div class="card table-card mt"><div class="pad"><h2 class="mb0">Endpoints</h2><p class="small muted">{{ d.endpoints_new|length }} new · {{ d.endpoints_gone|length }} gone · {{ d.endpoints_moved|length }} moved</p></div><table class="tbl"><thead><tr><th></th><th>MAC</th><th>Where</th><th>IP</th></tr></thead><tbody>
+{% for e in d.endpoints_moved|slice:":200" %}<tr><td>{% badge "moved" %}</td><td class="mono">{{ e.0 }}</td><td>{{ e.1 }} {{ e.2 }} → <strong>{{ e.3 }} {{ e.4 }}</strong></td><td></td></tr>{% endfor %}
+{% for e in d.endpoints_new|slice:":200" %}<tr><td>{% badge "new" %}</td><td class="mono">{{ e.0 }}</td><td>{{ e.1 }} {{ e.2 }} (VLAN {{ e.3 }})</td><td class="mono small">{{ e.4 }}</td></tr>{% endfor %}
+{% for e in d.endpoints_gone|slice:":200" %}<tr><td>{% badge "gone" %}</td><td class="mono">{{ e.0 }}</td><td>{{ e.1 }} {{ e.2 }} (VLAN {{ e.3 }})</td><td class="mono small">{{ e.4 }}</td></tr>{% endfor %}
+</tbody></table></div>{% endif %}
+{% if d.findings_new or d.findings_fixed %}<div class="card table-card mt"><div class="pad"><h2 class="mb0">Findings</h2></div><table class="tbl"><thead><tr><th></th><th>Device</th><th>Severity</th><th>Check</th><th>On</th></tr></thead><tbody>
+{% for f in d.findings_new %}<tr><td>{% badge "new" %}</td><td>{{ f.device }}</td><td>{% sev f.finding.0 %}</td><td class="mono small">{{ f.finding.1 }}</td><td class="small">{{ f.finding.2 }}</td></tr>{% endfor %}
+{% for f in d.findings_fixed %}<tr><td>{% badge "fixed" %}</td><td>{{ f.device }}</td><td>{% sev f.finding.0 %}</td><td class="mono small">{{ f.finding.1 }}</td><td class="small">{{ f.finding.2 }}</td></tr>{% endfor %}
+</tbody></table></div>{% endif %}
+{% endif %}
+{% endblock %}

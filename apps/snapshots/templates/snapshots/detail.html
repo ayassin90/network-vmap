@@ -1,0 +1,28 @@
+{% extends "core/base.html" %}
+{% block title %}Snapshot {{ s }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Snapshot: {{ s.taken_at|date:"Y-m-d H:i" }}{% if s.label %} · {{ s.label }}{% endif %}</h1>
+<p>{{ s.get_kind_display }}{% if s.created_by %} by {{ s.created_by }}{% endif %} · {{ s.summary.devices }} devices · {{ s.summary.up }} of {{ s.summary.interfaces }} ports up · {{ s.summary.links }} links · {{ s.summary.endpoints }} endpoints · {{ s.summary.findings }} open findings</p></div>
+<div class="actions"><a class="btn" href="{% url 'snapshots:compare' %}?a={{ s.pk }}&b=now">Compare with now</a>
+{% if is_admin %}<form method="post" class="inline" data-confirm="Delete this snapshot?">{% csrf_token %}<input type="hidden" name="action" value="delete"><button class="btn">Delete</button></form>{% endif %}</div></div>
+<div class="grid-2">
+<div class="card table-card"><div class="pad"><h2 class="mb0">Devices then</h2><form class="mt-s"><input name="q" value="{{ q }}" placeholder="Filter by name, IP, model"></form></div>
+<table class="tbl"><thead><tr><th>Device</th><th>Model</th><th>Software</th><th>Status</th><th>Security</th></tr></thead><tbody>
+{% for h, d in devices %}<tr class="{% if h == host %}sel{% endif %}"><td><a href="?device={{ h|urlencode }}">{{ h }}</a><div class="small muted mono">{{ d.ip }}</div></td><td class="small">{{ d.vendor }} {{ d.model }}</td><td class="mono small">{{ d.version }}</td><td>{% badge d.status %}</td><td>{{ d.security|default_if_none:"–" }}</td></tr>
+{% endfor %}</tbody></table></div>
+<div>
+{% if host %}
+<div class="card table-card"><div class="pad"><h2 class="mb0">{{ host }}: ports then</h2></div><table class="tbl"><thead><tr><th>Port</th><th>Status</th><th>Mode</th><th>VLAN</th><th>Speed</th><th>Description</th></tr></thead><tbody>
+{% for p, v in ports %}<tr><td class="mono">{{ p }}</td><td>{% badge v.0 %}</td><td>{{ v.1 }}</td><td class="small mono">{{ v.2|truncatechars:28 }}</td><td class="small">{% if v.3 %}{{ v.3 }} Mb/s {{ v.4 }}{% endif %}</td><td class="small">{{ v.5 }}</td></tr>{% endfor %}
+</tbody></table></div>
+<div class="card mt"><h2>Routes then ({{ routes|length }})</h2><pre class="code small">{% for r in routes %}{{ r|split:"|"|join:"  " }}
+{% empty %}none{% endfor %}</pre></div>
+<div class="card mt"><h2>Open findings then ({{ findings|length }})</h2><pre class="code small">{% for f in findings %}{{ f|split:"|"|join:"  " }}
+{% empty %}none{% endfor %}</pre></div>
+{% else %}
+<div class="card table-card"><div class="pad"><h2 class="mb0">Links then ({{ links|length }})</h2><p class="small muted">Pick a device on the left to see its ports, routes and findings at that time.</p></div><table class="tbl"><tbody>
+{% for l in links %}<tr><td>{{ l.0.0 }} <span class="mono small">{{ l.0.1 }}</span></td><td class="muted">↔</td><td>{{ l.1.0 }} <span class="mono small">{{ l.1.1 }}</span></td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+</div></div>
+{% endblock %}

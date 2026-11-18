@@ -1,0 +1,23 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}New upgrade plan{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'upgrades:list' %}">Software upgrades</a></p><h1>New upgrade plan</h1></div></div>
+<form method="get" class="filters"><select name="image" onchange="this.form.submit()"><option value="">Pick an image…</option>{% for i in images %}<option value="{{ i.pk }}" {% if img and img.pk == i.pk %}selected{% endif %}>{{ i.name }} ({{ i.version }})</option>{% endfor %}</select>
+{% if not images %}<a href="{% url 'upgrades:images' %}">Add an image first</a>{% endif %}</form>
+{% if img %}
+<form method="post">{% csrf_token %}<input type="hidden" name="image" value="{{ img.pk }}">
+<div class="split"><div class="card table-card"><table class="tbl"><thead><tr><th style="width:28px"><input type="checkbox" data-check-all="devices"></th><th>Device</th><th>Model</th><th>Current</th><th>Site</th><th></th></tr></thead><tbody>
+{% for d in cands %}<tr{% if d.same %} class="row-off"{% endif %}><td><input type="checkbox" name="devices" value="{{ d.pk }}" {% if d.same %}disabled{% endif %}></td><td><strong>{{ d.hostname }}</strong><div class="mono small muted">{{ d.mgmt_ip }}</div></td><td class="small">{{ d.model }}</td><td class="mono">{{ d.os_version }}</td><td class="small">{{ d.site.name|default:"" }}</td><td>{% if d.same %}<span class="badge badge-ok">already on {{ img.version }}</span>{% elif d.status != "up" %}{% badge d.status d.get_status_display %}{% endif %}</td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No device matches this image's platforms and model filter.</td></tr>{% endfor %}</tbody></table></div>
+<div class="card pad form" style="max-width:none"><h2>Plan</h2>
+<label>Name<input name="name" value="{{ img.version }} rollout"></label>
+<label>What to do<select name="mode"><option value="stage">Copy and verify only (no change to the running software)</option><option value="activate">Copy, verify and activate</option></select></label>
+<label class="check"><input type="checkbox" name="allow_reload"> Allow reload when activating {% help 'upgrades#reload' %}</label>
+<label class="check"><input type="checkbox" name="dry_run" checked> Dry run: show every command, send nothing</label>
+<label>Devices at a time<input type="number" name="max_parallel" value="5" min="1" max="50"></label>
+<label>Pause after this many failures<input type="number" name="stop_on_failures" value="1" min="0"><span class="helptext">0 = never pause.</span></label>
+<label>Start at (optional)<input type="datetime-local" name="scheduled_for"><span class="helptext">Server time. Empty = as soon as it is approved.</span></label>
+<p class="help-note small">Live plans (dry run off) need an administrator's approval before they start.</p>
+<div><button class="btn btn-primary">Create plan</button></div></div></div>
+</form>{% endif %}
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "core/base.html" %}
+{% block title %}Snapshots{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Network snapshots {% help 'snapshots' %}</h1><p>The whole network as it was at a moment in time: devices, software, ports, links, routes, endpoints and open findings. Compare any two, or one with now, to see exactly what changed.</p></div>
+<div class="actions"><a class="btn" href="{% url 'snapshots:compare' %}">Compare</a>
+{% if is_operator %}<form method="post" class="inline">{% csrf_token %}<input name="label" placeholder="Label (optional)" style="width:200px"> <button class="btn btn-primary">Take snapshot now</button></form>{% endif %}</div></div>
+<div class="card table-card"><table class="tbl"><thead><tr><th>Taken</th><th>Label</th><th>Kind</th><th>Devices</th><th>Ports up</th><th>Links</th><th>Routes</th><th>Endpoints</th><th>Open findings</th><th>Size</th><th></th></tr></thead><tbody>
+{% for s in snaps %}<tr><td><a href="{% url 'snapshots:detail' s.pk %}">{{ s.taken_at|date:"Y-m-d H:i" }}</a><div class="small muted">{{ s.taken_at|ago }}</div></td><td>{{ s.label|default:"–" }}</td>
+<td>{{ s.get_kind_display }}{% if s.created_by %}<div class="small muted">{{ s.created_by }}</div>{% endif %}</td>
+<td>{{ s.summary.devices }}</td><td>{{ s.summary.up }} / {{ s.summary.interfaces }}</td><td>{{ s.summary.links }}</td><td>{{ s.summary.routes }}</td><td>{{ s.summary.endpoints }}</td><td>{{ s.summary.findings }}</td>
+<td class="small muted">{{ s.size_kb }} KB</td>
+<td class="small"><a href="{% url 'snapshots:compare' %}?a={{ s.pk }}&b=now">compare with now</a></td></tr>
+{% empty %}<tr><td colspan="11" class="empty">No snapshots yet. One is taken automatically every day (Settings → snapshot interval), or take one now, for example before a maintenance window.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

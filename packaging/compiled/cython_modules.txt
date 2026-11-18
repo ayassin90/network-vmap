@@ -1,0 +1,17 @@
+# Modules compiled to native .so (compiled C) instead of bytecode: the parts that hold the product's know-how. Plain-logic
+# modules only: no Django models, migrations, settings, apps.py, urls, admin or views (Django introspects those).
+# One per line, path from the project root. compile.py turns everything else into sourceless .pyc.
+apps/drivers/base.py
+apps/drivers/catalog.py
+apps/drivers/cisco.py
+apps/drivers/aruba.py
+apps/drivers/aoss.py
+apps/drivers/arista.py
+apps/drivers/huawei.py
+apps/drivers/juniper.py
+apps/drivers/fortiswitch.py
+apps/drivers/snmp.py
+apps/checks/rules.py
+apps/checks/config.py
+apps/psirt/versions.py
+collector/executor.py

@@ -1,0 +1,17 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}{{ a.advisory_id }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'psirt:list' %}">PSIRT advisories</a></p><h1>{{ a.title }}</h1><p>{{ a.advisory_id }} · {% sev a.severity %} · CVSS {{ a.cvss|default:"–" }} · published {{ a.published|date:"Y-m-d" }}</p></div>
+<div class="actions">{% if a.url %}<a class="btn" href="{{ a.url }}" target="_blank" rel="noopener">Read the advisory ↗</a>{% endif %}</div></div>
+<div class="split"><div>
+<div class="card pad"><h2>Summary</h2><p>{{ a.summary }}</p>{% if a.workaround %}<h3>Workaround / mitigation</h3><p>{{ a.workaround }}</p>{% endif %}
+{% if a.fixed_in %}<h3>First fixed releases</h3><p class="mono small">{{ a.fixed_in }}</p>{% endif %}
+{% if a.source == "builtin" %}<p class="help-note small">This is a configuration-based exposure check: the feature named in the advisory is turned on. Confirm the exact fixed release for your version with the Cisco Software Checker or the advisory.</p>{% endif %}</div>
+<div class="card table-card mt"><table class="tbl"><thead><tr><th>Device</th><th>Version</th><th>Why</th><th>Status</th><th></th></tr></thead><tbody>
+{% for h in hits %}<tr><td><a href="{% url 'inventory:detail' h.device_id %}?tab=psirt">{{ h.device.hostname }}</a></td><td class="mono">{{ h.device.os_version }}</td><td class="small">{{ h.detail }}</td><td>{% badge h.status h.get_status_display %}</td>
+<td>{% if is_operator %}<form method="post" action="{% url 'psirt:hit' h.pk %}" class="inline-form">{% csrf_token %}<select name="status" onchange="this.form.submit()">{% for k,l in h.STATUS %}<option value="{{ k }}" {% if h.status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></form>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="5" class="empty">No device matches.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+<div class="card pad"><h2>CVEs</h2>{% for c in a.cve_list %}<p class="mono">{{ c }}</p>{% empty %}<p class="muted">None listed.</p>{% endfor %}<p class="small muted">OS types: {{ a.os_types }}</p></div>
+</div>
+{% endblock %}

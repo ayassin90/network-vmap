@@ -1,0 +1,16 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}Job #{{ j.pk }}{% endblock %}
+{% block head %}{% if auto %}<meta http-equiv="refresh" content="3">{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'jobs:list' %}">Jobs</a></p><h1>Job #{{ j.pk }} · {{ j.get_kind_display }} {% badge j.status %}</h1>
+<p>{% if j.device %}<a href="{% url 'inventory:detail' j.device_id %}">{{ j.device.hostname }}</a> · {% endif %}runs on {{ j.collector.name|default:"this server" }} · created {{ j.created_at|date:"Y-m-d H:i:s" }} by {{ j.created_by }}{% if j.duration %} · took {{ j.duration }}s{% endif %}{% if auto %} · refreshing…{% endif %}</p></div>
+<div class="actions">{% if j.status == "queued" and is_operator %}<form method="post" action="{% url 'jobs:cancel' j.pk %}">{% csrf_token %}<button class="btn btn-danger">Cancel</button></form>{% endif %}</div></div>
+{% if j.status == "queued" and j.collector %}<div class="alert alert-info"><strong>Waiting for collector {{ j.collector.name }}</strong>{% if j.collector.online %}It is online and will pick this up within a few seconds.{% else %}It has not checked in recently (last seen {{ j.collector.last_seen|ago }}). Start the agent to run this job.{% endif %}</div>{% endif %}
+{% if j.summary %}<div class="alert alert-success"><strong>Result</strong>{{ j.summary }}</div>{% endif %}
+{% if j.error %}<div class="alert alert-bad"><strong>Error</strong><span style="white-space:pre-wrap">{{ j.error }}</span></div>{% endif %}
+{% for k, v in j.result.outputs.items %}<div class="card pad" style="margin-bottom:12px"><h3 class="mono">{% for c in j.spec.commands %}{% if c.key == k %}{{ c.cmd }}{% endif %}{% endfor %}</h3><pre class="pre">{{ v }}</pre></div>{% endfor %}
+{% for k, v in j.result.errors.items %}<div class="alert alert-warning"><strong>{{ k }}</strong>{{ v }}</div>{% endfor %}
+{% for s in j.result.steps %}<div class="card pad" style="margin-bottom:12px"><h3 class="mono">{% if s.ok %}<span class="ok-text">✓</span>{% else %}<span style="color:var(--bad)">✗</span>{% endif %} {{ s.cmd }}</h3><pre class="pre">{{ s.output }}</pre></div>{% endfor %}
+{% if j.result.snmp %}<details class="card pad"><summary><strong>SNMP result</strong></summary><pre class="pre mt">{{ j.result.snmp|pprint|truncatechars:20000 }}</pre></details>{% endif %}
+<details class="card pad mt"><summary><strong>Job specification</strong> <span class="muted small">(secrets hidden)</span></summary><pre class="pre mt">{{ spec|pprint }}</pre></details>
+{% endblock %}

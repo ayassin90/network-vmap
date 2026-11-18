@@ -1,0 +1,14 @@
+cryptography==50.0.2
+Django==5.2.19
+dj-database-url==3.1.2
+gunicorn==27.0.0
+ldap3==2.9.1
+netmiko==4.8.0
+ntc_templates==9.3.0
+paramiko==5.1.0
+psycopg2-binary==2.9.13
+PyJWT==2.15.1
+pysnmp==7.1.32
+requests==2.34.2
+textfsm==2.1.1
+whitenoise==6.12.0

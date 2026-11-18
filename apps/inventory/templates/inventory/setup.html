@@ -1,0 +1,27 @@
+{% extends "core/base.html" %}{% load ui %}
+{% block title %}Sites & credentials{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Sites &amp; credentials {% help 'setup' %}</h1><p>Credentials are encrypted at rest and only sent to the worker or collector that logs in to the device. Sites group devices on maps and reports.</p></div></div>
+<div class="grid grid-2" style="align-items:start">
+<div>
+  <div class="card table-card"><div class="pad"><h2 class="mb0">Credentials</h2></div><table class="tbl compact"><thead><tr><th>Name</th><th>Type</th><th>User</th><th></th></tr></thead><tbody>
+  {% for c in creds %}<tr><td><strong>{{ c.name }}</strong></td><td>{{ c.get_kind_display }}</td><td>{{ c.username|default:"–" }}</td>
+  <td class="right">{% if is_admin %}<a class="btn btn-sm" href="?cred={{ c.pk }}">Edit</a> <form method="post" class="inline-form" data-confirm="Delete credential {{ c.name }}? Devices using it will have none.">{% csrf_token %}<input type="hidden" name="what" value="del_cred"><input type="hidden" name="id" value="{{ c.pk }}"><button class="btn btn-sm btn-danger">Delete</button></form>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="4" class="empty">No credentials yet.</td></tr>{% endfor %}</tbody></table></div>
+  <div class="card table-card mt"><div class="pad"><h2 class="mb0">Sites</h2></div><table class="tbl compact"><tbody>
+  {% for s in sites %}<tr><td><strong>{{ s.name }}</strong><div class="muted small">{{ s.location }}</div></td><td>{{ s.n }} devices</td><td class="right">{% if is_admin %}<form method="post" class="inline-form" data-confirm="Delete site {{ s.name }}? Devices stay, without a site.">{% csrf_token %}<input type="hidden" name="what" value="del_site"><input type="hidden" name="id" value="{{ s.pk }}"><button class="btn btn-sm btn-danger">Delete</button></form>{% endif %}</td></tr>
+  {% empty %}<tr><td class="empty">No sites yet.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+<div>
+{% if is_admin %}
+  <form method="post" class="card pad form" style="max-width:none">{% csrf_token %}<input type="hidden" name="what" value="cred">{% if edit_cred %}<input type="hidden" name="id" value="{{ edit_cred.pk }}">{% endif %}
+    <h2>{% if edit_cred %}Edit {{ edit_cred.name }}{% else %}Add a credential{% endif %} {% help 'setup#credentials' %}</h2>
+    {% with form=cred_form %}{% include "core/_form.html" %}{% endwith %}
+    <div class="actions"><button class="btn btn-primary">Save credential</button>{% if edit_cred %}<a class="btn" href="?">Cancel</a>{% endif %}</div>
+  </form>
+  <form method="post" class="card pad form mt" style="max-width:none">{% csrf_token %}<input type="hidden" name="what" value="site">
+    <h2>Add a site</h2>{% with form=site_form %}{% include "core/_form.html" %}{% endwith %}<div><button class="btn btn-primary">Add site</button></div>
+  </form>
+{% else %}<div class="card pad"><p class="muted">Only administrators can change sites and credentials.</p></div>{% endif %}
+</div></div>
+{% endblock %}
