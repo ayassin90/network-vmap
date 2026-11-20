@@ -1,0 +1,33 @@
+{% extends "core/base.html" %}{% load ui posture_tags %}
+{% block title %}Check catalogue{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="crumbs"><a href="{% url 'checks:posture' %}">Hardening posture</a></p>
+<h1>Check catalogue {% help 'posture#catalogue' %}</h1>
+<p>Every built-in configuration check, what it looks for, why it matters and the standards it supports. {{ rows|length }} of {{ n_all }} shown.</p></div>
+<div class="actions">{% export_link %}</div></div>
+
+<div class="filters">
+<div class="seg"><a href="?" class="{% if not fam %}on{% endif %}">All ({{ n_all }})</a>{% for k, l in families.items %}<a href="?family={{ k }}" class="{% if fam == k %}on{% endif %}">{{ l }} ({{ fam_counts|get_item:k }})</a>{% endfor %}</div>
+</div>
+<div class="filters">
+<form method="get" class="inline-form"><input type="hidden" name="family" value="{{ fam }}">
+<select name="domain" onchange="this.form.submit()"><option value="">All domains</option>{% for k, l in domains.items %}<option value="{{ k }}" {% if dom == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+<select name="sev" onchange="this.form.submit()"><option value="">All severities</option>{% for k, l in severities %}<option value="{{ k }}" {% if sev == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+<select name="fw"><option value="">Any framework</option>{% for k, f in frameworks.items %}<option value="{{ k }}" {% if fw == k %}selected{% endif %}>{{ f.short }}</option>{% endfor %}</select>
+<input name="control" value="{{ control }}" placeholder="Control, e.g. AC-17(2)" style="width:170px">
+<input name="q" value="{{ q }}" placeholder="Search checks"><button class="btn">Filter</button></form></div>
+
+<div class="card table-card"><table class="tbl"><thead><tr><th style="width:120px">ID</th><th style="width:80px">Severity</th><th>Check</th><th style="width:38%">Standards and controls</th></tr></thead><tbody>
+{% for r in rows %}<tr><td class="mono small">{{ r.id }}</td><td>{% sev r.severity %}</td>
+<td><details class="inline-details"><summary><strong>{{ r.title }}</strong></summary>
+  <p class="small">{{ r.why }}</p><p class="small"><strong>Fix:</strong> {{ r.fix }}</p>{% if r.snippet %}<pre class="pre" style="max-height:160px">{{ r.snippet }}</pre>{% endif %}</details>
+  <div class="small muted">{{ r.domain|domain_label }} · {% for f in r.families %}{{ families|get_item:f }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if r.switch_only %} · switches only{% endif %}</div></td>
+<td>{% for f, short, ids in r.controls|ordered_controls %}<div class="ctl-line"><b>{{ short }}</b>{% for i in ids %}<span title="{% ctl_title f i %}">{{ i }}</span>{% if not forloop.last %} · {% endif %}{% endfor %}</div>{% endfor %}</td></tr>
+{% empty %}<tr><td colspan="4" class="empty">No check matches these filters.</td></tr>{% endfor %}</tbody></table></div>
+
+<details class="card pad mt-lg" id="mapping"><summary><strong>How checks map to standards</strong> <span class="muted small">— {{ topics|length }} control objectives</span></summary>
+<p class="small muted mt">Each check supports one or more control objectives. Each objective lists the controls it helps meet in each framework, so every check that enforces (for example) encrypted management maps to the same controls. CIS Benchmark item numbers are given for Cisco IOS / IOS-XE checks.</p>
+<table class="tbl compact mt"><thead><tr><th>Objective</th><th class="right">Checks</th><th>CIS v8</th><th>NIST 800-53</th><th>ISO 27001</th><th>PCI DSS</th><th>NIST CSF</th></tr></thead><tbody>
+{% for t in topics %}<tr><td>{{ t.label }}</td><td class="right">{{ t.n }}</td>{% for fwk, ids in t.maps.items %}<td class="small mono">{{ ids|join:", "|default:"–" }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+</details>
+{% endblock %}

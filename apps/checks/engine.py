@@ -8,8 +8,12 @@ from django.utils import timezone
 from apps.inventory.models import Interface
 
 from .config import Config, child_has
-from .models import ComplianceResult, Finding, Standard
+from .controls import SEV_WEIGHT
+from .models import ComplianceResult, Finding, PostureResult, Standard
 from .rules import RULES
+from .ruleset import evaluate
+
+RULE_BY_ID = {r.id: r for r in RULES}
 
 WEIGHT = {"critical": 25, "high": 12, "medium": 5, "low": 2, "info": 0}
 
@@ -59,18 +63,22 @@ def _close(device, categories, keep_ids):
 
 
 def run_rules(ctx):
-    keep = []
+    """Evaluate every built-in check for the device's family. Failures become findings; every outcome (pass, fail,
+    not applicable) is kept in PostureResult for the hardening posture pages."""
+    keep, results = [], {}
     for r in RULES:
-        if ctx.family not in r.families or (r.switch_only and not ctx.is_switch):
+        if ctx.family not in r.families:
             continue
         try:
-            hits = r.fn(ctx)
+            st, hits = evaluate(r, ctx)
         except Exception as exc:  # noqa: BLE001 - one broken rule must not stop the others
-            hits = []
+            st, hits = "na", []
             print(f"rule {r.id} failed: {exc}")
+        results[r.id] = [st, "; ".join(h.detail for h in hits)[:400]]
         for h in hits:
             keep.append(_upsert(ctx.device, r.category, r.id, h.key, r.severity, r.title, h.detail, r.why + "\n\n" + r.fix, r.snippet))
     _close(ctx.device, ["security", "best_practice"], keep)
+    PostureResult.objects.update_or_create(device=ctx.device, defaults={"results": results, "ran_at": timezone.now()})
 
 
 def run_standards(device, cfg):
@@ -376,12 +384,30 @@ def run_vlan_checks(device):
     _close(device, ["vlan"], keep)
 
 
+def posture_score(results, open_ids):
+    """Severity-weighted share of applicable checks that pass (an accepted risk counts as passing)."""
+    total = got = 0
+    for rid, (st, _d) in results.items():
+        r = RULE_BY_ID.get(rid)
+        w = SEV_WEIGHT.get(r.severity, 0) if r else 0
+        if not w or st not in ("pass", "fail"):
+            continue
+        total += w
+        if st == "pass" or rid not in open_ids:
+            got += w
+    return round(100 * got / total) if total else None
+
+
 def rescore(device):
-    open_f = list(Finding.objects.filter(device=device, status="open").values_list("category", "severity"))
-    sec = sum(WEIGHT[s] for c, s in open_f if c in ("security", "best_practice"))
-    health = sum(WEIGHT[s] for c, s in open_f if c in ("interface", "stp", "vlan", "health"))
+    open_f = list(Finding.objects.filter(device=device, status="open").values_list("category", "severity", "check_id"))
+    health = sum(WEIGHT[s] for c, s, _i in open_f if c in ("interface", "stp", "vlan", "health"))
     results = list(ComplianceResult.objects.filter(device=device))
-    device.security_score = max(0, 100 - sec) if device.configs.exists() else None
+    posture = PostureResult.objects.filter(device=device).first()
+    if posture and device.configs.exists():
+        device.security_score = posture_score(posture.results, {i for c, _s, i in open_f if c in ("security", "best_practice")})
+    else:
+        sec = sum(WEIGHT[s] for c, s, _i in open_f if c in ("security", "best_practice"))
+        device.security_score = max(0, 100 - sec) if device.configs.exists() else None
     device.health_score = max(0, 100 - health)
     device.compliance_score = round(sum(r.score for r in results) / len(results)) if results else None
     device.save(update_fields=["security_score", "health_score", "compliance_score"])

@@ -15,3 +15,12 @@ apps/checks/rules.py
 apps/checks/config.py
 apps/psirt/versions.py
 collector/executor.py
+apps/checks/ruleset.py
+apps/checks/controls.py
+apps/checks/hardening_ios.py
+apps/checks/hardening_nxos.py
+apps/checks/hardening_eos.py
+apps/checks/hardening_aruba.py
+apps/checks/hardening_vrp.py
+apps/checks/hardening_junos.py
+apps/checks/hardening_fortiswitch.py

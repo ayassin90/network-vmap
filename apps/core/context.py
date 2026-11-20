@@ -20,6 +20,7 @@ NAV = [
         ("Discovery", "inventory:discovery", "sparkle", ("inventory:discovery", "inventory:discovery_detail")),
     ]),
     ("Assurance", [
+        ("Hardening posture", "checks:posture", "lock", ("checks:posture", "checks:catalog")),
         ("Security & practices", "checks:findings", "shield", ("checks:findings",)),
         ("Config standards", "checks:standards", "check", ("checks:standards", "checks:standard", "checks:compliance", "checks:standard_new")),
         ("PSIRT advisories", "psirt:list", "alert", ("psirt:list", "psirt:detail")),

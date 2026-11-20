@@ -1,4 +1,4 @@
-{% extends "core/base.html" %}{% load ui humanize %}
+{% extends "core/base.html" %}{% load ui humanize posture_tags %}
 {% block title %}{{ d.hostname }}{% endblock %}
 {% block content %}
 <div class="page-head"><div>
@@ -23,7 +23,7 @@
 {% if d.last_error and d.status == "up" %}<div class="alert alert-warn"><strong>Partly collected</strong> {{ d.last_error|truncatechars:600 }}</div>{% endif %}
 
 <nav class="tabs">
-  {% for key, label in "overview:Overview,interfaces:Interfaces,endpoints:Endpoints,neighbors:Neighbours,stp:Spanning tree,routes:Routes,vlans:VLANs,config:Config,findings:Findings,standards:Standards,psirt:PSIRT,commands:Run commands,jobs:Jobs"|split_pairs %}
+  {% for key, label in "overview:Overview,interfaces:Interfaces,endpoints:Endpoints,neighbors:Neighbours,stp:Spanning tree,routes:Routes,vlans:VLANs,config:Config,findings:Findings,posture:Hardening,standards:Standards,psirt:PSIRT,commands:Run commands,jobs:Jobs"|split_pairs %}
   <a href="?tab={{ key }}" class="{% if tab == key %}on{% endif %}">{{ label }}{% with n=counts|get_item:key %}{% if n %}<em class="n">{{ n }}</em>{% endif %}{% endwith %}</a>{% endfor %}
 </nav>
 
@@ -150,6 +150,28 @@
   </div>
 </details>{% empty %}<div class="card empty-state"><p>No open findings for this device.</p></div>{% endfor %}</div>
 {% if resolved %}<h2 class="mt-lg">Recently resolved</h2><div class="card table-card"><table class="tbl compact"><tbody>{% for f in resolved %}<tr><td>{% sev f.severity %}</td><td>{{ f.title }} <span class="muted mono">{{ f.key }}</span></td><td class="muted small">fixed {{ f.resolved_at|ago }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+
+{% elif tab == "posture" %}
+{% if not posture_rows %}<div class="card empty-state"><h2>No hardening results yet</h2><p>Hardening checks run on the collected configuration. Collect this device, or press <em>Re-run checks</em> on the <a href="{% url 'checks:posture' %}">Hardening posture</a> page.</p></div>{% else %}
+<div class="split">
+<div class="card pad"><div class="row-gap" style="justify-content:space-between"><h2 class="mb0">Hardening score</h2>{% include "core/_score.html" with v=d.security_score %}</div>
+<p class="small muted">{{ posture_counts.applicable }} checks apply to this device: <span class="ok-text">{{ posture_counts.pass }} pass</span>, <span style="color:var(--bad)">{{ posture_counts.fail }} fail</span>{% if posture_counts.accepted %}, {{ posture_counts.accepted }} accepted risk{% endif %}. {{ posture_counts.na }} do not apply. Checked {{ posture_ran|ago }}.</p>
+{% for x in posture_domains %}{% if x.applicable %}<div class="hgauge"><span style="min-width:170px"><a href="#dom-{{ x.key }}">{{ x.label }}</a></span><div class="mini-bar"><i class="{% if x.pct is not None and x.pct < 60 %}hot{% elif x.pct is not None and x.pct < 85 %}warm{% endif %}" style="width:{{ x.pct|default:0 }}%"></i></div><b>{% if x.pct is None %}–{% else %}{{ x.pct }}%{% endif %}</b><span class="small muted" style="min-width:70px">{{ x.fail }} failing</span></div>{% endif %}{% endfor %}
+</div>
+<div class="card pad"><h2>Standards</h2><p class="small muted">Share of this device's mapped checks that pass, per framework. Click one to show only its controls below.</p>
+{% for f in posture_frameworks %}<div class="hgauge"><span style="min-width:170px"><a href="?tab=posture&fw={{ f.key }}{% if show %}&show={{ show }}{% endif %}">{{ f.name }}</a></span><div class="mini-bar"><i class="{% if f.pct is not None and f.pct < 60 %}hot{% elif f.pct is not None and f.pct < 85 %}warm{% endif %}" style="width:{{ f.pct|default:0 }}%"></i></div><b>{% if f.pct is None %}–{% else %}{{ f.pct }}%{% endif %}</b></div>
+{% if f.failing_controls %}<div class="ctl-line" style="margin:-2px 0 8px 0">Failing: {{ f.failing_controls|slice:":14"|join:" · " }}{% if f.failing_controls|length > 14 %} …{% endif %}</div>{% endif %}{% endfor %}
+</div></div>
+<div class="filters mt"><div class="seg"><a href="?tab=posture{% if fwsel %}&fw={{ fwsel }}{% endif %}" class="{% if not show %}on{% endif %}">Applicable</a><a href="?tab=posture&show=fail{% if fwsel %}&fw={{ fwsel }}{% endif %}" class="{% if show == 'fail' %}on{% endif %}">Failing only</a><a href="?tab=posture&show=all{% if fwsel %}&fw={{ fwsel }}{% endif %}" class="{% if show == 'all' %}on{% endif %}">Everything (incl. not applicable)</a></div>
+{% if fwsel %}<span class="small muted">Showing {{ fwsel|fw_short }} controls · <a href="?tab=posture{% if show %}&show={{ show }}{% endif %}">all standards</a></span>{% endif %}</div>
+{% for x in posture_domains %}{% if show == "all" or show == "fail" and x.fail or not show and x.applicable %}<div class="card table-card mt" id="dom-{{ x.key }}"><div class="pad row-gap" style="justify-content:space-between"><h2 class="mb0">{{ x.label }}</h2><span class="small muted">{{ x.pass }} pass · {{ x.fail }} fail{% if x.accepted %} · {{ x.accepted }} accepted{% endif %} · {{ x.na }} n/a</span></div>
+<table class="tbl compact"><tbody>{% for row in x.rows %}{% if not fwsel or fwsel in row.r.controls %}{% if show == "all" or show == "fail" and row.status == "fail" or not show and row.status != "na" %}
+<tr><td style="width:84px"><span class="pst pst-{{ row.status }}">{% if row.status == "na" %}n/a{% else %}{{ row.status|capfirst }}{% endif %}</span></td><td style="width:74px">{% sev row.r.severity %}</td>
+<td><strong>{{ row.r.title }}</strong> <span class="mono small muted">{{ row.r.id }}</span>{% if row.detail %}<div class="small muted">{{ row.detail|truncatechars:220 }}</div>{% endif %}
+{% if row.status == "fail" %}<details class="inline-details"><summary class="small">Why and how to fix</summary><p class="small">{{ row.r.why }}</p><p class="small"><strong>Fix:</strong> {{ row.r.fix }}</p>{% if row.r.snippet %}<pre class="pre" style="max-height:140px">{{ row.r.snippet }}</pre>{% endif %}</details>{% endif %}</td>
+<td style="width:36%">{% for f, short, ids in row.r.controls|ordered_controls:fwsel %}<div class="ctl-line"><b>{{ short }}</b>{% for i in ids %}<span title="{% ctl_title f i %}">{{ i }}</span>{% if not forloop.last %} · {% endif %}{% endfor %}</div>{% endfor %}</td></tr>
+{% endif %}{% endif %}{% endfor %}</tbody></table></div>{% endif %}{% endfor %}
+{% endif %}
 
 {% elif tab == "standards" %}
 {% for r in results %}<div class="card pad" style="margin-bottom:12px"><div class="row-gap" style="justify-content:space-between"><h2 class="mb0"><a href="{% url 'checks:standard' r.standard.pk %}">{{ r.standard.name }}</a></h2>{% include "core/_score.html" with v=r.score %}</div>

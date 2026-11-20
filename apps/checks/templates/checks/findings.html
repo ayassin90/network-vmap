@@ -25,6 +25,5 @@
 {% for f in page %}<tr><td>{% sev f.severity %}</td><td><a href="{% url 'inventory:detail' f.device_id %}?tab=findings">{{ f.device.hostname }}</a></td><td><strong>{{ f.title }}</strong><div class="small muted">{{ f.get_category_display }}</div></td><td class="small">{{ f.detail|truncatechars:140 }}</td><td class="small muted">{{ f.first_seen|ago }}</td></tr>
 {% empty %}<tr><td colspan="5" class="empty">Nothing here.</td></tr>{% endfor %}</tbody></table></div>{% include "core/pager.html" %}
 {% endif %}
-<details class="card pad mt"><summary><strong>All built-in checks ({{ rules|length }})</strong> <span class="muted small">— what VMap looks for</span></summary>
-<table class="tbl compact mt"><thead><tr><th>ID</th><th>Severity</th><th>Check</th><th>Why it matters</th></tr></thead><tbody>{% for r in rules %}<tr><td class="mono small">{{ r.id }}</td><td>{% sev r.severity %}</td><td><strong>{{ r.title }}</strong><div class="small muted">{{ r.families|join:", " }}{% if r.switch_only %} · switches only{% endif %}</div></td><td class="small">{{ r.why }}</td></tr>{% endfor %}</tbody></table></details>
+<div class="card pad mt row-gap" style="justify-content:space-between"><div><strong>{{ rules|length }} built-in checks</strong> <span class="muted small">— what VMap looks for, why, and the CIS / NIST / ISO 27001 / PCI DSS controls each one supports</span></div><div class="row-gap"><a class="btn" href="{% url 'checks:posture' %}">Hardening posture</a><a class="btn" href="{% url 'checks:catalog' %}">Check catalogue</a></div></div>
 {% endblock %}

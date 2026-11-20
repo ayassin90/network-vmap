@@ -157,7 +157,16 @@ def audit():
     psirt.sort(key=lambda p: (rank.get(p["advisory__severity"], 9), -p["n"]))
     life = Finding.objects.filter(status="open", category="lifecycle").select_related("device").order_by("severity", "device__hostname")
     scores = devs.aggregate(sec=Avg("security_score"), comp=Avg("compliance_score"), health=Avg("health_score"))
+    from apps.checks.models import PostureResult
+    from apps.checks.posture import FW_ORDER, fleet
+    prs = list(PostureResult.objects.filter(device__in=devs).select_related("device"))
+    standards = []
+    for fw in FW_ORDER:
+        f = fleet(prs, fw)
+        standards.append({"key": fw, "name": f["framework"]["name"], "pct": next(x["pct"] for x in f["frameworks"] if x["key"] == fw),
+                          "n_controls": f["n_controls"], "evaluated": f["n_evaluated"],
+                          "failing": [c for c in f["controls"] if c["fail"]]})
     sev = {s: sec.filter(severity=s).count() for s in rank}
     return {"generated": timezone.now(), "devices": devs.count(), "by_vendor": devs.values("vendor").annotate(n=Count("id")).order_by("-n"),
-            "scores": scores, "sev": sev, "checks": checks, "accepted": accepted, "compliance": comp, "psirt": psirt, "life": life,
+            "scores": scores, "sev": sev, "standards": standards, "checks": checks, "accepted": accepted, "compliance": comp, "psirt": psirt, "life": life,
             "worst": devs.exclude(security_score=None).order_by("security_score")[:10]}

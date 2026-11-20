@@ -63,6 +63,8 @@ def finding_action(request, pk):
     elif act == "reopen":
         f.status = "open"
     f.save()
+    from .engine import rescore
+    rescore(f.device)
     messages.success(request, "Finding updated.")
     return redirect(request.META.get("HTTP_REFERER") or "checks:findings")
 
@@ -153,3 +155,66 @@ def standard(request, pk):
 def compliance(request, pk, device):
     r = get_object_or_404(ComplianceResult.objects.select_related("device", "standard"), standard_id=pk, device_id=device)
     return render(request, "checks/compliance.html", {"r": r, "now": timezone.now()})
+
+
+# ------------------------------------------------------------------ hardening posture and check catalogue
+FAMILY_LABEL = {"cisco_ios": "Cisco IOS / IOS-XE", "cisco_nxos": "Cisco NX-OS", "arista_eos": "Arista EOS", "aruba_aoscx": "Aruba AOS-CX",
+                "aruba_aoss": "Aruba AOS-S", "huawei_vrp": "Huawei VRP", "juniper_junos": "Juniper Junos", "fortiswitch": "FortiSwitch"}
+
+
+def posture(request):
+    from . import posture as P
+    from .controls import FRAMEWORKS
+    from .models import PostureResult
+    fw = request.GET.get("fw") if request.GET.get("fw") in FRAMEWORKS else "cisv8"
+    devs = Device.objects.filter(enabled=True)
+    if request.GET.get("site"):
+        devs = devs.filter(site_id=request.GET["site"])
+    if request.GET.get("role"):
+        devs = devs.filter(role=request.GET["role"])
+    if request.GET.get("platform"):
+        devs = devs.filter(platform=request.GET["platform"])
+    prs = PostureResult.objects.filter(device__in=devs).select_related("device", "device__site")
+    data = P.fleet(prs, fw)
+    from apps.core.export import csv_response, wants_csv
+    if wants_csv(request):
+        return csv_response(f"posture-{fw}", ["framework", "control", "title", "checks", "passing", "failing", "accepted", "compliance_pct",
+                                              "failing_devices", "failing_checks"],
+                            ([FRAMEWORKS[fw]["name"], c["id"], c["title"], c["n_checks"], c["ok"] - c["accepted"], c["fail"], c["accepted"],
+                              c["pct"], " ".join(d.hostname for d in c["fail_devices"]),
+                              " ".join(x["r"].id for x in c["rows"] if x["fail"])] for c in data["controls"]))
+    plats = sorted(set(Device.objects.filter(enabled=True).values_list("platform", flat=True)))
+    return render(request, "checks/posture.html", {**data, "sites": Site.objects.all(), "roles": Device.ROLES,
+                                                   "platforms": plats, "n_rules": len(RULES)})
+
+
+def catalog(request):
+    from . import posture as P
+    from .controls import DOMAINS, FRAMEWORKS
+    rows = list(RULES)
+    fam, dom, sev, fw, q = (request.GET.get(k, "") for k in ("family", "domain", "sev", "fw", "q"))
+    if fam:
+        rows = [r for r in rows if fam in r.families]
+    if dom:
+        rows = [r for r in rows if r.domain == dom]
+    if sev:
+        rows = [r for r in rows if r.severity == sev]
+    ctl = request.GET.get("control", "")
+    if fw in FRAMEWORKS and ctl:
+        rows = [r for r in rows if ctl in r.controls.get(fw, [])]
+    if q:
+        ql = q.lower()
+        rows = [r for r in rows if ql in r.id.lower() or ql in r.title.lower() or ql in r.why.lower()
+                or any(ql == c.lower() for ids in r.controls.values() for c in ids)]
+    from apps.core.export import csv_response, wants_csv
+    if wants_csv(request):
+        return csv_response("check-catalogue", ["id", "title", "severity", "category", "domain", "platforms", "switches_only", "cis_controls_v8",
+                                                "nist_800_53", "iso_27001", "pci_dss", "nist_csf", "cis_benchmark", "why", "fix", "remediation"],
+                            ([r.id, r.title, r.severity, r.category, DOMAINS.get(r.domain, r.domain), " ".join(r.families), "yes" if r.switch_only else "",
+                              " ".join(r.controls.get("cisv8", [])), " ".join(r.controls.get("nist", [])), " ".join(r.controls.get("iso", [])),
+                              " ".join(r.controls.get("pci", [])), " ".join(r.controls.get("csf", [])), " ".join(r.controls.get("cis", [])),
+                              r.why, r.fix, r.snippet] for r in rows))
+    fam_counts = {f: sum(1 for r in RULES if f in r.families) for f in FAMILY_LABEL}
+    return render(request, "checks/catalog.html", {"rows": rows, "n_all": len(RULES), "families": FAMILY_LABEL, "fam_counts": fam_counts,
+                                                   "domains": DOMAINS, "frameworks": FRAMEWORKS, "topics": P.topic_rows(),
+                                                   "fam": fam, "dom": dom, "sev": sev, "fw": fw, "control": ctl, "q": q, "severities": SEVERITIES})

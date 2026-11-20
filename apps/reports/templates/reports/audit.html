@@ -18,23 +18,26 @@
 {% for g in checks %}<tr><td>{% sev g.severity %}</td><td><strong>{{ g.title }}</strong> <span class="mono small muted">{{ g.id }}</span><div class="small">{{ g.recommendation|truncatechars:240 }}</div></td><td class="small">{{ g.devices|length }}: {{ g.devices|join:", " }}</td></tr>
 {% empty %}<tr><td colspan="3" class="empty">No open security findings.</td></tr>{% endfor %}</tbody></table></div>
 
-<div class="card table-card mt"><div class="pad"><h2 class="mb0">3. Configuration standards</h2></div><table class="tbl"><thead><tr><th>Standard</th><th>Devices checked</th><th>Fully compliant</th><th>Failed rules (total)</th></tr></thead><tbody>
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">3. Hardening against security standards</h2><p class="small muted">Share of applicable configuration checks that pass, per framework (accepted risks count as passing). The controls listed have at least one failing check on at least one device. The check-by-check mapping is in the check catalogue.</p></div>
+<table class="tbl"><thead><tr><th>Framework</th><th>Checks passing</th><th>Controls evaluated</th><th>Controls with failures</th></tr></thead><tbody>
+{% for s in standards %}<tr><td>{{ s.name }}</td><td>{% if s.pct is None %}–{% else %}{{ s.pct }}%{% endif %}</td><td>{{ s.evaluated }} of {{ s.n_controls }}</td><td class="small">{% for c in s.failing|slice:":16" %}<span class="mono" title="{{ c.title }}">{{ c.id }}</span> ({{ c.fail_devices|length }}){% if not forloop.last %}, {% endif %}{% endfor %}{% if s.failing|length > 16 %} … {{ s.failing|length|add:"-16" }} more{% endif %}{% if not s.failing %}none{% endif %}</td></tr>{% empty %}<tr><td colspan="4" class="empty">No posture data yet.</td></tr>{% endfor %}</tbody></table></div>
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">4. Configuration standards</h2></div><table class="tbl"><thead><tr><th>Standard</th><th>Devices checked</th><th>Fully compliant</th><th>Failed rules (total)</th></tr></thead><tbody>
 {% for s in compliance %}<tr><td>{{ s.name }}</td><td>{{ s.devices }}</td><td>{{ s.compliant }} ({% widthratio s.compliant s.devices 100 %}%)</td><td>{{ s.failed_rules }}</td></tr>
 {% empty %}<tr><td colspan="4" class="empty">No standards evaluated yet.</td></tr>{% endfor %}</tbody></table></div>
 
-<div class="card table-card mt"><div class="pad"><h2 class="mb0">4. Vendor security advisories (PSIRT)</h2></div><table class="tbl"><thead><tr><th>Severity</th><th>Advisory</th><th>Affected devices</th></tr></thead><tbody>
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">5. Vendor security advisories (PSIRT)</h2></div><table class="tbl"><thead><tr><th>Severity</th><th>Advisory</th><th>Affected devices</th></tr></thead><tbody>
 {% for p in psirt %}<tr><td>{% sev p.advisory__severity %}</td><td><strong>{{ p.advisory__title }}</strong><div class="mono small muted">{{ p.advisory__advisory_id }}</div></td><td class="small">{{ p.n }}: {{ p.devices|join:", " }}</td></tr>
 {% empty %}<tr><td colspan="3" class="empty">No device is affected by a known advisory.</td></tr>{% endfor %}</tbody></table></div>
 
-<div class="card table-card mt"><div class="pad"><h2 class="mb0">5. Lifecycle: end of support, software and contracts</h2></div><table class="tbl"><thead><tr><th>Severity</th><th>Device</th><th>Finding</th></tr></thead><tbody>
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">6. Lifecycle: end of support, software and contracts</h2></div><table class="tbl"><thead><tr><th>Severity</th><th>Device</th><th>Finding</th></tr></thead><tbody>
 {% for f in life %}<tr><td>{% sev f.severity %}</td><td>{{ f.device.hostname }}</td><td>{{ f.title }}<div class="small muted">{{ f.detail|truncatechars:200 }}</div></td></tr>
 {% empty %}<tr><td colspan="3" class="empty">No lifecycle issues.</td></tr>{% endfor %}</tbody></table></div>
 
-<div class="card table-card mt"><div class="pad"><h2 class="mb0">6. Accepted risks</h2><p class="small muted">Findings a person reviewed and accepted, with their reason.</p></div><table class="tbl"><thead><tr><th>Device</th><th>Finding</th><th>Accepted by</th><th>Reason</th></tr></thead><tbody>
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">7. Accepted risks</h2><p class="small muted">Findings a person reviewed and accepted, with their reason.</p></div><table class="tbl"><thead><tr><th>Device</th><th>Finding</th><th>Accepted by</th><th>Reason</th></tr></thead><tbody>
 {% for f in accepted %}<tr><td>{{ f.device.hostname }}</td><td>{{ f.title }} <span class="small muted">{{ f.key }}</span></td><td>{{ f.accepted_by }}</td><td class="small">{{ f.accepted_note }}</td></tr>
 {% empty %}<tr><td colspan="4" class="empty">None.</td></tr>{% endfor %}</tbody></table></div>
 
-<div class="card table-card mt"><div class="pad"><h2 class="mb0">7. Lowest security scores</h2></div><table class="tbl"><thead><tr><th>Device</th><th>Site</th><th>Model</th><th>Software</th><th>Security</th><th>Standards</th></tr></thead><tbody>
+<div class="card table-card mt"><div class="pad"><h2 class="mb0">8. Lowest security scores</h2></div><table class="tbl"><thead><tr><th>Device</th><th>Site</th><th>Model</th><th>Software</th><th>Security</th><th>Standards</th></tr></thead><tbody>
 {% for d in worst %}<tr><td>{{ d.hostname }} <span class="mono small muted">{{ d.mgmt_ip }}</span></td><td>{{ d.site|default:"–" }}</td><td class="small">{{ d.vendor }} {{ d.model }}</td><td class="mono small">{{ d.os_version }}</td><td>{{ d.security_score }}</td><td>{{ d.compliance_score|default_if_none:"–" }}</td></tr>{% endfor %}
 </tbody></table></div>
 {% endblock %}

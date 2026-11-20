@@ -179,6 +179,11 @@ def device_detail(request, pk):
     elif tab == "findings":
         ctx["findings"] = sorted(d.findings.exclude(status="resolved"), key=lambda f: (-f.rank, f.category))
         ctx["resolved"] = d.findings.filter(status="resolved")[:30]
+    elif tab == "posture":
+        from apps.checks.posture import device_view
+        ctx.update(device_view(d))
+        ctx["show"] = request.GET.get("show", "")
+        ctx["fwsel"] = request.GET.get("fw", "")
     elif tab == "standards":
         ctx["results"] = ComplianceResult.objects.filter(device=d).select_related("standard")
     elif tab == "psirt":

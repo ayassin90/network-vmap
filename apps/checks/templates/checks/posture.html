@@ -1,0 +1,58 @@
+{% extends "core/base.html" %}{% load ui posture_tags %}
+{% block title %}Hardening posture{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Hardening posture {% help 'posture' %}</h1>
+<p>{{ n_rules }} configuration hardening checks across eight platforms, mapped to CIS, NIST, ISO 27001 and PCI DSS controls. Each control shows how many devices meet it today.</p></div>
+<div class="actions">{% export_link %}<a class="btn" href="{% url 'checks:catalog' %}">Check catalogue</a>{% if is_operator %}<form method="post" action="{% url 'checks:rerun' %}">{% csrf_token %}<button class="btn" title="Re-evaluate every check on the configurations already collected">Re-run checks</button></form>{% endif %}</div></div>
+
+<div class="fw-cards">{% for f in frameworks %}
+<a class="fw-card {% if f.key == fw %}on{% endif %}" href="?fw={{ f.key }}{% if request.GET.site %}&site={{ request.GET.site }}{% endif %}{% if request.GET.role %}&role={{ request.GET.role }}{% endif %}{% if request.GET.platform %}&platform={{ request.GET.platform }}{% endif %}">
+  <div class="n">{% if f.pct is None %}–{% else %}{{ f.pct }}%{% endif %}</div><div class="l">{{ f.name }}</div>
+  <div class="mini-bar"><i class="{% if f.pct is not None and f.pct < 60 %}hot{% elif f.pct is not None and f.pct < 85 %}warm{% endif %}" style="width:{{ f.pct|default:0 }}%"></i></div></a>{% endfor %}</div>
+
+<div class="filters mt">
+<form method="get" class="inline-form"><input type="hidden" name="fw" value="{{ fw }}">
+<select name="site" onchange="this.form.submit()"><option value="">All sites</option>{% for s in sites %}<option value="{{ s.pk }}" {% if request.GET.site == s.pk|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>{% endfor %}</select>
+<select name="role" onchange="this.form.submit()"><option value="">All roles</option>{% for k, l in roles %}<option value="{{ k }}" {% if request.GET.role == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+<select name="platform" onchange="this.form.submit()"><option value="">All platforms</option>{% for p in platforms %}<option value="{{ p }}" {% if request.GET.platform == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+</form></div>
+
+{% if not n_devices %}<div class="card empty-state mt"><h2>No posture data yet</h2><p>Posture is calculated from collected configurations. Collect a device (or press Re-run checks) and come back.</p></div>{% else %}
+<div class="grid grid-4 mt">
+  <div class="card stat"><span class="n">{{ n_devices }}</span><span class="l">Devices evaluated</span></div>
+  <div class="card stat"><span class="n">{{ n_evaluated }} / {{ n_controls }}</span><span class="l">{{ framework.short }} controls evaluated</span></div>
+  <div class="card stat"><span class="n {% if n_failing_controls %}bad{% endif %}">{{ n_failing_controls }}</span><span class="l">Controls with a failing check</span></div>
+  <div class="card stat"><span class="n">{% for f in frameworks %}{% if f.key == fw %}{% if f.pct is None %}–{% else %}{{ f.pct }}%{% endif %}{% endif %}{% endfor %}</span><span class="l">Checks passing ({{ framework.short }} scope)</span></div>
+</div>
+
+<div class="split mt">
+<div class="card pad"><h2>By domain</h2>
+{% for d in domains %}<div class="hgauge"><span style="min-width:170px">{{ d.label }}</span><div class="mini-bar"><i class="{% if d.pct < 60 %}hot{% elif d.pct < 85 %}warm{% endif %}" style="width:{{ d.pct }}%"></i></div><b>{{ d.pct }}%</b><span class="small muted" style="min-width:90px">{{ d.fail }} failing</span></div>{% endfor %}
+</div>
+<div class="card table-card"><div class="pad"><h2 class="mb0">Devices</h2><p class="small muted">Weakest first. The score is the severity-weighted share of applicable checks that pass.</p></div>
+<table class="tbl compact"><tbody>{% for x in devices|slice:":12" %}<tr><td><a href="{% url 'inventory:detail' x.d.pk %}?tab=posture">{{ x.d.hostname }}</a><div class="small muted">{{ x.d.driver.label }}</div></td><td class="right">{% include "core/_score.html" with v=x.score %}</td><td class="small muted right" style="white-space:nowrap">{{ x.fail }} failing</td></tr>{% endfor %}</tbody></table>
+{% if devices|length > 12 %}<p class="pad small muted">… and {{ devices|length|add:"-12" }} more.</p>{% endif %}</div>
+</div>
+
+<h2 class="mt-lg">{{ framework.name }} <span class="muted small">— {{ framework.about }}</span></h2>
+<div class="stack-sm">{% for c in controls %}
+<details class="card find-group {% if c.fail %}s-high{% elif not c.evaluated %}s-info{% else %}s-low{% endif %}">
+  <summary><span class="ctl-sum"><span class="cid">{{ c.id }}</span><span class="t">{{ c.title|default:"(benchmark item)" }}</span>
+    <span class="tag">{{ c.n_checks }} check{{ c.n_checks|pluralize }}</span>
+    {% if c.evaluated %}<span class="mini-bar"><i class="{% if c.pct < 60 %}hot{% elif c.pct < 85 %}warm{% endif %}" style="width:{{ c.pct }}%"></i></span><span class="score score-{{ c.pct|pct_tone }}">{{ c.pct }}</span>{% else %}<span class="small muted">not applicable to these devices</span>{% endif %}
+    {% if c.fail_devices %}<span class="badge badge-bad">{{ c.fail_devices|length }} device{{ c.fail_devices|length|pluralize }}</span>{% endif %}</span></summary>
+  <div class="body">
+    <table class="tbl compact"><thead><tr><th>Check</th><th>Severity</th><th class="right">Pass</th><th class="right">Fail</th><th class="right">Accepted</th><th>Failing devices</th></tr></thead><tbody>
+    {% for x in c.rows %}<tr><td><span class="mono small">{{ x.r.id }}</span> {{ x.r.title }}</td><td>{% sev x.r.severity %}</td><td class="right">{{ x.pass }}</td><td class="right">{% if x.fail %}<strong style="color:var(--bad)">{{ x.fail }}</strong>{% else %}0{% endif %}</td><td class="right">{{ x.accepted }}</td>
+      <td class="small">{% for d in x.fail_devices|slice:":8" %}<a href="{% url 'inventory:detail' d.pk %}?tab=posture">{{ d.hostname }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% if x.fail_devices|length > 8 %} …{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="6" class="empty">None of the mapped checks apply to the selected devices.</td></tr>{% endfor %}</tbody></table>
+    <p class="small"><a href="{% url 'checks:catalog' %}?fw={{ fw }}&control={{ c.id|urlencode }}">All {{ c.n_checks }} checks mapped to {{ framework.short }} {{ c.id }} →</a></p>
+  </div>
+</details>{% endfor %}</div>
+
+{% if worst %}<div class="card table-card mt-lg"><div class="pad"><h2 class="mb0">Most widespread failures</h2></div>
+<table class="tbl compact"><thead><tr><th>Check</th><th>Severity</th><th>Domain</th><th class="right">Devices failing</th><th>Standards</th></tr></thead><tbody>
+{% for x in worst %}<tr><td><span class="mono small">{{ x.r.id }}</span> <a href="{% url 'checks:findings' %}?q={{ x.r.title|urlencode }}">{{ x.r.title }}</a></td><td>{% sev x.r.severity %}</td><td class="small">{{ x.r.domain|domain_label }}</td><td class="right">{{ x.fail }}</td>
+<td>{% for f, short, ids in x.r.controls|ordered_controls:fw %}<div class="ctl-line"><b>{{ short }}</b>{{ ids|join:" · " }}</div>{% endfor %}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+{% endif %}
+{% endblock %}

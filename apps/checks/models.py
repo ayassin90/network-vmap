@@ -91,3 +91,16 @@ class ComplianceResult(models.Model):
     def score(self):
         total = self.passed + self.failed
         return round(100 * self.passed / total) if total else 100
+
+
+class PostureResult(models.Model):
+    """The latest outcome of every built-in check on one device: {check_id: [status, detail]} with status pass/fail/na."""
+    device = models.OneToOneField("inventory.Device", on_delete=models.CASCADE, related_name="posture")
+    ran_at = models.DateTimeField(default=timezone.now)
+    results = models.JSONField(default=dict)
+
+    def counts(self):
+        out = {"pass": 0, "fail": 0, "na": 0}
+        for st, _d in self.results.values():
+            out[st] = out.get(st, 0) + 1
+        return out
